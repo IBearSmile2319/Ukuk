@@ -4,3 +4,8 @@ target/
 .env
 var/
 *.log
+
+# Documentos reales para evaluar: nunca a GitHub
+var/
+evaluacion/
+*.local.csv

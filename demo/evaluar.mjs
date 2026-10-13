@@ -3,10 +3,13 @@
 // Todo corre en tu máquina (API en :3000) y solo imprime cifras agregadas, sin datos personales.
 //
 // Uso:
-//   node demo/evaluar.mjs <carpeta> --tipo acta [--etiquetas etiquetas.csv] [--detalle salida.csv]
+//   node demo/evaluar.mjs <carpeta> --tipo acta [--etiquetas etiquetas.csv] [--grupo '^(sol\d+)_'] [--detalle salida.csv]
 //
 // Etiquetas: un CSV con columnas archivo,etiqueta (etiqueta = bueno | malo), o carpetas llamadas
 // "buenos" y "malos" dentro de <carpeta>. Sin etiquetas solo se reporta la distribución.
+// --grupo: expresión regular sobre el nombre del archivo que agrupa documentos de una misma solicitud.
+//   Una solicitud con fraude cuenta como detectada si se marca al menos uno de sus documentos
+//   (no todas sus páginas están alteradas).
 // --detalle escribe un CSV local con el resultado por archivo (no se imprime en pantalla).
 import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { basename, extname, join, relative, sep } from 'node:path';
@@ -120,6 +123,25 @@ if (bad.length || good.length) {
 } else {
   console.log(`\nHallazgos más frecuentes:\n${top(rows)}`);
   console.log('\n(Sin etiquetas no se puede medir la detección: usa --etiquetas o carpetas buenos/malos.)');
+}
+
+const grupo = opt('grupo');
+if (grupo && (bad.length || good.length)) {
+  const re = new RegExp(grupo);
+  const groups = new Map();
+  for (const r of rows.filter((r) => r.label)) {
+    const id = re.exec(basename(r.path))?.[1] ?? basename(r.path);
+    const g = groups.get(id) ?? { malo: false, flagged: false };
+    g.malo ||= r.label === 'malo';
+    g.flagged ||= flagged(r);
+    groups.set(id, g);
+  }
+  const gs = [...groups.values()];
+  const gb = gs.filter((g) => g.malo);
+  const gg = gs.filter((g) => !g.malo);
+  console.log(`\nPor solicitud (${gs.length}):`);
+  console.log(`  con fraude confirmado: ${gb.length} · detectadas (algún documento marcado): ${gb.filter((g) => g.flagged).length} → ${pct(gb.filter((g) => g.flagged).length, gb.length)}`);
+  console.log(`  sin fraude confirmado: ${gg.length} · con alguna alarma: ${gg.filter((g) => g.flagged).length} → ${pct(gg.filter((g) => g.flagged).length, gg.length)}`);
 }
 
 const detalle = opt('detalle');
