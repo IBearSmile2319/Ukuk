@@ -11,7 +11,8 @@ venden por separado o en paquete:
 | 4 | **Siniestros por WhatsApp** | El asegurado reporta por chat, envía fotos con captura en vivo (GPS y hora) y el caso llega verificado al ajustador con el reloj SBS corriendo | `claims` |
 
 La propuesta de negocio completa está en [`docs/propuesta.md`](docs/propuesta.md) y la
-decisión de stack en [`docs/arquitectura.md`](docs/arquitectura.md). Cómo venderlo:
+decisión de stack en [`docs/arquitectura.md`](docs/arquitectura.md). **Qué está hecho, cómo se
+probó y qué sigue, con capturas: [`docs/roadmap.md`](docs/roadmap.md).** Cómo venderlo:
 [`docs/venta.md`](docs/venta.md). Cómo activar OCR, Claude, WhatsApp, SUNAT y RENIEC:
 [`docs/integraciones.md`](docs/integraciones.md).
 

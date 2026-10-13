@@ -9,7 +9,7 @@
   WhatsApp.
 - **Dónde estamos:** el software de los cuatro servicios ya existe como **prototipo funcional y
   probado**, con página pública, portal para analistas y datos de demostración. Corre en tu Mac
-  con un comando.
+  con un comando, y ya se probó con DNI reales.
 - **Lo que falta no es técnico:** el negocio está en la fase 0 de la propuesta (validar con
   clientes). Lo siguiente es revisar tu contrato laboral, hacer las 10 entrevistas y conseguir una
   carta de intención para un piloto pagado.
@@ -18,35 +18,75 @@
 
 ✓ = hecho y probado como prototipo · ○ = pendiente
 
+## Lo que se ve hoy
+
+### Página pública
+
+Explica la oferta, deja probar el análisis con documentos de muestra y recibe pedidos de piloto. No
+publica precios: todavía son hipótesis.
+
+![Página pública](img/01-pagina-publica.png)
+
+### El inspector araña
+
+Mientras se analiza un documento, una araña recorre el texto que leyó el OCR y deja marcado cada
+hallazgo: **rojo** = anomalía, **ámbar** = revisar, **azul** = dato extraído. Sirve como barra de
+progreso y luce en una demo.
+
+| Boleta retocada: el total no cuadra (rechazar) | DNIe con el número cambiado (revisar) |
+|---|---|
+| ![Boleta adulterada](img/02-demo-boleta-adulterada.png) | ![DNIe alterado](img/04-demo-dnie.png) |
+
+| DNI azul vencido (revisar) |
+|---|
+| ![DNI azul vencido](img/03-demo-dni-azul.png) |
+
+Los DNI de muestra imitan el diseño del DNIe 3.0 y del DNI azul anterior, con **datos
+ficticios** y la marca "ESPÉCIMEN". No copian el escudo ni los elementos de seguridad reales.
+
+### Portal para analistas
+
+| Informe de un documento | Caso PLAFT con su coincidencia |
+|---|---|
+| ![Documento](img/06-portal-documento.png) | ![Caso PLAFT](img/07-portal-plaft-caso.png) |
+
+| Matriz de impacto regulatorio | Siniestro con plazos SBS |
+|---|---|
+| ![Radar](img/08-portal-radar-matriz.png) | ![Siniestro](img/09-portal-siniestro.png) |
+
+| Simulador de WhatsApp (sin cuenta de Meta) | Cuenta: consumo y auditoría verificable |
+|---|---|
+| ![Simulador](img/10-portal-simulador-whatsapp.png) | ![Cuenta](img/11-portal-cuenta.png) |
+
+También funciona en el celular:
+
+<img src="img/12-celular.png" alt="Página pública en un celular" width="300">
+
 ## Lo que se construyó
 
 ### Etapa 1: los cuatro servicios
 
-<!-- CAPTURAS -->
+| Servicio | Qué hace hoy |
+|---|---|
+| **1. Verificación documental** | Puntaje de riesgo de 0 a 100 y una recomendación (aprobar, revisar, rechazar), con cada hallazgo marcado. Detecta: zonas pegadas o clonadas, compresión distinta, edición con Photoshop, PDF modificado, sumas e IGV que no cuadran, MRZ del DNI que no coincide con lo impreso, dígito del CUI incorrecto, DNI vencido, y archivos o fotos reusados. |
+| **2. Radar regulatorio** | Separa normas generales de particulares, las cruza con los procesos del cliente y arma la matriz de impacto, el resumen diario, las tareas y el borrador de comentarios. |
+| **3. PLAFT** | Revisa personas y empresas contra OFAC, ONU y listas PEP (pensado para nombres peruanos). Abre casos, asigna el régimen de debida diligencia, guarda la decisión con su sustento y vuelve a revisar la cartera cada noche. |
+| **4. Siniestros por WhatsApp** | Conversación guiada, fotos en vivo con GPS y hora, plazos de la SBS y revisión del analista antes del ajustador. |
 
-| Servicio | Qué hace hoy | Dónde está |
-|---|---|---|
-| **1. Verificación documental** | Recibe una imagen, PDF o XML y devuelve un puntaje de riesgo de 0 a 100, una decisión (aprobar, revisar, rechazar) y cada hallazgo marcado sobre el documento. Detecta zonas pegadas o clonadas, compresión distinta, edición con Photoshop, PDF modificado, sumas e IGV que no cuadran, MRZ del DNI que no coincide con lo impreso, y archivos o fotos reusados. | `engine/` (mediciones) y `api/src/documents` |
-| **2. Radar regulatorio** | Separa normas generales de particulares, las cruza con los procesos internos del cliente y arma la matriz de impacto, el resumen diario, las tareas y el borrador de comentarios. | `api/src/regulatory` |
-| **3. PLAFT** | Revisa personas y empresas contra OFAC, ONU y listas PEP, pensado para nombres peruanos. Abre casos, asigna el régimen de debida diligencia, guarda la decisión con su sustento y vuelve a revisar la cartera cada noche. | `engine/crates/ukuk-names` y `api/src/plaft` |
-| **4. Siniestros por WhatsApp** | Conversación guiada, fotos en vivo con GPS y hora, plazos de la SBS (aviso, aclaraciones, consentimiento) y revisión del analista antes del ajustador. | `api/src/claims` |
-
-Debajo de los cuatro hay una base común: cada cliente solo ve sus datos (aislamiento en la base de
-datos), sus archivos se cifran con una llave propia, la auditoría no se puede borrar ni editar y se
-mide el consumo para cobrar.
+Debajo de los cuatro hay una base común: cada cliente solo ve sus datos, sus archivos se cifran con
+una llave propia, la auditoría no se puede borrar ni editar y se mide el consumo para cobrar.
 
 ### Etapa 2: para probarlo y venderlo
 
 | Pieza | Para qué sirve |
 |---|---|
-| **Página pública** con demo interactiva y formulario "Solicitar un piloto" | Que un prospecto entienda la oferta y deje sus datos |
-| **Portal para analistas** con los cuatro servicios | Probar todo sin usar la terminal |
-| **Inspector araña** | La animación que recorre el documento mientras se analiza: luce en una demo y sirve de barra de progreso |
-| **Simulador de WhatsApp** | Probar el bot de siniestros sin cuenta de Meta |
-| **OCR local con Tesseract** | Leer el texto de las imágenes gratis, sin AWS |
-| **Datos de demostración** (`demo/`) | Boletas, un DNI, pólizas, procesos, normas y personas, todo ficticio |
-| **`./dev.sh`** | Levanta todo en tu Mac con un comando |
-| **Guías** | [Cómo vender](venta.md) y [cómo activar cada integración](integraciones.md) |
+| Página pública con demo y formulario de piloto | Que un prospecto entienda la oferta y deje sus datos |
+| Portal para analistas | Usar los cuatro servicios sin la terminal |
+| Simulador de WhatsApp | Probar el bot de siniestros sin cuenta de Meta |
+| OCR local con Tesseract | Leer imágenes gratis, sin AWS |
+| Datos de demostración (`demo/`) | Boletas, DNIe y DNI azul, pólizas, procesos, normas y personas, todo ficticio |
+| `./dev.sh` | Levanta todo en tu Mac con un comando |
+| Guías | [Cómo vender](venta.md) y [cómo activar cada integración](integraciones.md) |
 
 ## Cómo funciona por dentro
 
@@ -65,29 +105,64 @@ flowchart LR
   API -. con credenciales del cliente .-> F[SUNAT · RENIEC]
 ```
 
-- **El motor Rust mide; las reglas deciden; Claude solo redacta.** Así cada decisión se puede
-  explicar y auditar, como pide la SBS para el riesgo de modelo.
-- **Por qué Rust y NestJS:** el detalle está en [arquitectura.md](arquitectura.md).
+**El motor Rust mide; las reglas deciden; Claude solo redacta.** Así cada decisión se puede
+explicar y auditar, como pide la SBS para el riesgo de modelo. El porqué de Rust y NestJS está en
+[arquitectura.md](arquitectura.md).
 
 ## Cómo se probó
 
 ### Pruebas automáticas
 
-<!-- PRUEBAS -->
-
-### Prueba de punta a punta con datos de demostración
-
-<!-- DEMO -->
-
-### Problemas que las pruebas encontraron y se corrigieron
-
-| Problema | Qué pasaba | Arreglo |
+| Parte | Pruebas | Resultado |
 |---|---|---|
-| Boleta legítima rechazada | Las filas de una tabla repiten texto ("Consulta médica") y parecían zonas clonadas | El texto repetido en la misma fila o columna cuenta como severidad baja; en documentos, un clonado de texto nunca pasa de severidad media |
-| Boleta legítima en "revisar" | Al activar el OCR, las tildes de las mayúsculas (CLÍNICA) y las cajas algo holgadas parecían letras de otro tamaño | Más tolerancia en etiquetas; solo pesan las palabras con números, que son las que se adulteran |
-| Nombres parciales sin coincidencia | "Teodulfo Huamanchumo" no coincide con "HUAMANCHUMO SARAVIA, Teodulfo Anselmo" con el umbral de 0.85 | Pendiente: revisar con el nombre completo del DNI o bajar el umbral por cliente |
-| Credenciales en texto plano | Las claves de SUNAT y RENIEC de cada cliente se guardaban tal cual en la base | Ahora se referencian por variable de entorno (`*_ref`) |
-| RUC real en los ejemplos | La boleta de ejemplo usaba el RUC de un banco real | Se cambió por RUC ficticios con dígito verificador válido |
+| Motor Rust (reglas peruanas, forense, nombres, API HTTP) | 163 | ✅ todas pasan · clippy sin avisos |
+| API: pruebas unitarias (puntaje, plazos SBS, conversación, cifrado, CSV…) | 120 | ✅ todas pasan |
+| API: de punta a punta contra PostgreSQL real (los 4 servicios, aislamiento entre clientes, auditoría) | 38 | ✅ todas pasan |
+| Web (tipos y compilación) | — | ✅ sin errores |
+
+Cómo correrlas: `cargo test --workspace` en `engine/`, y `npm test` y `npm run test:e2e` en `api/`.
+
+### Prueba con los datos de demostración
+
+| Documento de muestra | Resultado | Por qué |
+|---|---|---|
+| Boleta legítima | ✅ aprobar (riesgo 9) | Nada relevante |
+| La misma boleta, retocada | ⛔ rechazar (77) | Subtotal + IGV no da el total; la imagen es casi igual a otra ya presentada |
+| DNIe con el número cambiado | ⚠️ revisar (66) | El dígito del CUI no corresponde al número; el MRZ trae otro número |
+| DNI azul de la misma persona | ⚠️ revisar (33) | Vencido |
+
+Los cuatro servicios también se probaron de punta a punta con `node demo/seed.mjs`:
+- **PLAFT:** de 6 personas, 3 coincidieron con las listas y abrieron caso.
+- **Radar:** 3 normas, de las cuales la particular se ignoró.
+- **Siniestros:** una conversación completa por el simulador, con foto en vivo.
+
+### Prueba con DNI reales
+
+El fundador probó con fotos de su propio DNIe (frente y reverso) y de su DNI azul anterior. **Las
+fotos y los datos no se guardaron en el repositorio:** las pruebas automáticas usan números
+inventados. Esto es lo que se encontró:
+
+| Qué pasó | Qué se cambió |
+|---|---|
+| Una foto con el DNI sostenido en la mano salió **"aprobar" sin haber leído nada** (el OCR no encontró texto) | Si no se puede leer, el sistema pide otra foto y no aprueba |
+| El MRZ trae **solo el primer apellido** (en los dos DNI reales), y el sistema lo marcaba como discrepancia | Se acepta el primer apellido completo; un apellido distinto o cortado sigue siendo discrepancia |
+| El CUI tiene un **dígito de verificación** (por ejemplo 12345678-**1**) que el sistema no revisaba | Nueva verificación: un número alterado no calza con su dígito |
+| En un carnet, el CUI grande junto a etiquetas pequeñas parecía "letra de otro tamaño" | La revisión de diseño genérica no se aplica a carnets; ahí vale la plantilla |
+| Los rellenos `<<<<` del MRZ parecían "zonas clonadas" | Se ignoran las repeticiones dentro de la franja del MRZ |
+| Un DNI vencido quedaba con severidad media | Vencido = severidad alta: siempre se revisa |
+
+Mientras no esté activa la API de Claude, la "IA" se simuló: Claude Code revisó las fotos y
+escribió la explicación con el mismo formato que daría la API. Quedó guardada en el informe y
+marcada como simulación.
+
+### Otros problemas que encontraron las pruebas
+
+| Problema | Arreglo |
+|---|---|
+| Una boleta legítima se rechazaba porque las filas repetidas de la tabla parecían clonadas | El texto repetido en la misma fila o columna es severidad baja |
+| Las tildes en mayúsculas (CLÍNICA) parecían letras de otro tamaño | Más tolerancia en etiquetas; solo pesan las palabras con números |
+| Las claves de SUNAT y RENIEC de cada cliente se guardaban en texto plano | Ahora se referencian por variable de entorno (`*_ref`) |
+| La boleta de ejemplo usaba el RUC de un banco real | Se cambió por un RUC ficticio con dígito verificador válido |
 
 ## Qué sigue
 
@@ -104,11 +179,17 @@ flowchart LR
 
 ### Fase 1: primer piloto (documental)
 
-- [ ] Desplegar en AWS en la región acordada con el cliente, con dominio y correo propios.
+- [ ] Desplegar en AWS en la región acordada, con dominio y correo propios.
+- [ ] Activar Claude (`ANTHROPIC_API_KEY`) y Amazon Textract: Tesseract no lee bien las fotos de
+      un carnet en la mano.
+- [ ] Recortar y enderezar el documento dentro de la foto antes del OCR.
+- [ ] Comparar los montos y datos declarados con lo que leyó el OCR. Hoy solo se cruzan los datos
+      declarados entre sí.
+- [ ] Plantillas del DNIe 3.0, el DNI azul y los emisores frecuentes del cliente.
 - [ ] Probar SUNAT y RENIEC con las credenciales del cliente piloto.
-- [ ] Medir detección y falsos positivos con sus documentos; ajustar umbrales.
-- [ ] Biblioteca de plantillas de sus emisores frecuentes.
-- [ ] Cola durable (SQS) para documentos pesados.
+- [ ] Usuarios con contraseña o SSO y roles en el portal. Hoy se entra con la llave de API del
+      cliente.
+- [ ] Medir detección y falsos positivos con sus documentos, y ajustar umbrales.
 
 ### Fase 2: PLAFT y radar
 
@@ -120,12 +201,13 @@ flowchart LR
 ### Fase 3: siniestros con una aseguradora
 
 - [ ] Número de WhatsApp Business de la aseguradora y plantillas aprobadas por Meta.
-- [ ] Días hábiles y feriados en los plazos SBS; confirmar con un abogado la lectura de los plazos.
-- [ ] Transcripción de notas de voz.
+- [ ] Detectar reuso entre las fotos de siniestros y los documentos ya presentados.
+- [ ] Días hábiles y feriados en los plazos SBS; confirmar la lectura de los plazos con un abogado.
+- [ ] Transcripción de notas de voz y cola durable para el webhook.
 
 ### En paralelo
 
-- [x] Aislamiento por cliente, cifrado, auditoría inalterable.
+- [x] Aislamiento por cliente, cifrado y auditoría inalterable.
 - [ ] Camino a ISO 27001 o SOC 2.
 - [ ] Límite de tasa en las rutas públicas (formulario y página de captura).
 
@@ -136,4 +218,5 @@ flowchart LR
 node demo/seed.mjs     # en otra terminal: datos de demostración; imprime la llave del portal
 ```
 
-Abre http://localhost:5173: la página pública con la demo, y "Ingresar" para el portal.
+Abre http://localhost:5173. Ahí está la página pública con la demo, y con "Ingresar" entras al
+portal usando la llave que imprimió el script.
