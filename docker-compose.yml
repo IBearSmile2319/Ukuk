@@ -1,0 +1,49 @@
+# Entorno local completo: PostgreSQL + motor Rust + API.
+#   docker compose up -d db engine
+#   docker compose run --rm migrate
+#   docker compose up api
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ukuk
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 5s
+
+  engine:
+    build: ./engine
+    environment:
+      UKUK_ENGINE_ADDR: 0.0.0.0:8090
+      UKUK_DATA_DIR: /data
+    ports: ["8090:8090"]
+    volumes: [enginedata:/data]
+
+  migrate:
+    build: ./api
+    command: ["node", "-e", "require('./dist/db/migrate').migrate(process.env.MIGRATION_DATABASE_URL, console.log)"]
+    environment:
+      MIGRATION_DATABASE_URL: postgres://postgres:postgres@db:5432/ukuk
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: ./api
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgres://ukuk_app:ukuk@db:5432/ukuk
+      UKUK_ENGINE_URL: http://engine:8090
+      UKUK_STORAGE_DIR: /data/blobs
+      UKUK_ADMIN_TOKEN: ${UKUK_ADMIN_TOKEN:-dev-admin-token}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    ports: ["3000:3000"]
+    volumes: [blobs:/data]
+    depends_on: [db, engine]
+
+volumes:
+  pgdata:
+  enginedata:
+  blobs:
