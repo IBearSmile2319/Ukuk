@@ -8,7 +8,8 @@ pub mod template;
 pub mod xml;
 
 pub use image::dhash::{hamming, hamming_u64};
-pub use image::{ImageAnalysis, ImageReport, analyze_image};
+pub use image::text_marks::analyze_text_marks;
+pub use image::{ImageAnalysis, ImageReport, analyze_image, decode};
 pub use layout::analyze_layout;
 pub use pdf::{PdfAnalysis, PdfReport, analyze_pdf};
 pub use template::{Anchor, Template, compare_template};

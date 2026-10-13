@@ -157,6 +157,19 @@ errores, ya corregidos:
   errores de lectura.
 - El OCR local no lee 3 de cada 4 anversos: hace falta Textract y recortar el carnet.
 
+**Primeros intentos de detectar texto alterado (no funcionan todavía).** Se midieron con
+`demo/calibrar.mjs` sobre las mismas actas de nacimiento:
+
+| Señal | Mejor punto | Por qué no sirve |
+|---|---|---|
+| Palabra que no se parece a ninguna otra (tinta, trazo, nitidez, fondo) | 95 % de los fraudes, pero también 94 % de las legítimas | Toda acta real tiene palabras distintas legítimas: sellos, firmas, encabezados, letra a mano |
+| Fondo liso junto a la palabra y con trama más lejos (parche) | 52 % de los fraudes, pero también 52 % de las legítimas | Los formularios tienen recuadros y márgenes lisos por diseño |
+
+Comparar una palabra con el resto del mismo documento no basta. Lo que falta es saber cómo se ve
+**cada campo en cada formato de acta** (dónde va el nombre, qué trama tiene detrás, qué letra usa),
+aprendido de actas legítimas del mismo formato, y comparar contra eso. Ambas señales quedan
+apagadas por defecto y solo corren al calibrar (`UKUK_TEXT_OUTLIER`, `UKUK_PATCH_RATIO`).
+
 ### Pruebas automáticas
 
 | Parte | Pruebas | Resultado |
@@ -230,8 +243,9 @@ marcada como simulación.
 
 ### Fase 1: primer piloto (documental)
 
-- [ ] **Forense de glifos:** comparar cada letra con las demás del mismo documento, y detectar
-      campos con otra nitidez, otro ruido de fondo u otra cuadrícula de compresión.
+- [ ] **Forense por campo y por formato:** aprender de actas legítimas cómo se ve cada campo de
+      cada formato (posición, letra, trama del fondo) y marcar el campo que se sale de eso. Las
+      señales genéricas dentro del mismo documento ya se probaron y no separan.
 - [ ] Tipos propios para actas de nacimiento, matrimonio y defunción, con sus reglas de fechas y
       plantillas por formato.
 - [x] DNI con los dos lados en una imagen: el MRZ y el número del frente se leen con OCR y se

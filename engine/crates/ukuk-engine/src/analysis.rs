@@ -240,6 +240,13 @@ pub fn run(req: AnalyzeRequest, today: NaiveDate) -> Result<AnalyzeResponse, Api
         findings.extend(ukuk_forensics::analyze_layout(words));
     }
     drop_mrz_clones(&mut findings, words);
+    // Experimental: medido con actas reales, todavía no separa adulteradas de legítimas
+    // (docs/roadmap.md). Solo corre al calibrar, con UKUK_TEXT_OUTLIER o UKUK_PATCH_RATIO.
+    let calibrating = std::env::var_os("UKUK_TEXT_OUTLIER").is_some()
+        || std::env::var_os("UKUK_PATCH_RATIO").is_some();
+    if calibrating && kind == Kind::Image && req.document_type.is_some() && !words.is_empty() {
+        findings.extend(text_marks(&bytes, words));
+    }
     findings.extend(ukuk_forensics::compare_template(
         req.template.as_ref(),
         words,
@@ -257,6 +264,32 @@ pub fn run(req: AnalyzeRequest, today: NaiveDate) -> Result<AnalyzeResponse, Api
         findings,
         duration_ms: 0,
     })
+}
+
+/// Palabras que no se parecen a ninguna otra del documento (texto reescrito o pegado).
+/// `UKUK_TEXT_OUTLIER` y `UKUK_PATCH_RATIO` ajustan los umbrales para calibrar con documentos reales.
+fn text_marks(bytes: &[u8], words: &[OcrWord]) -> Vec<Finding> {
+    let env = |k: &str, d: f64| {
+        std::env::var(k)
+            .ok()
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(d)
+    };
+    let threshold = env(
+        "UKUK_TEXT_OUTLIER",
+        ukuk_forensics::image::text_marks::DEFAULT_OUTLIER,
+    );
+    let patch = env(
+        "UKUK_PATCH_RATIO",
+        ukuk_forensics::image::text_marks::DEFAULT_PATCH,
+    );
+    match ukuk_forensics::decode(bytes) {
+        // Sin aplicar la orientación EXIF: el OCR leyó los píxeles tal como vienen.
+        Ok((img, _, _)) => {
+            ukuk_forensics::analyze_text_marks(&img.to_luma8(), words, threshold, patch)
+        }
+        Err(_) => Vec::new(),
+    }
 }
 
 /// Los rellenos «<<<<» de una MRZ se repiten entre sus líneas: un «clonado» con

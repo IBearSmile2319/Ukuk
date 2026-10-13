@@ -5,6 +5,7 @@ pub mod dhash;
 pub mod ela;
 pub mod exif;
 pub mod quality;
+pub mod text_marks;
 
 use std::io::Cursor;
 
