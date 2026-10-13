@@ -78,7 +78,32 @@ await upload('boleta-legitima.jpg', { ...boleta, total: '118.00' }, 'boleta_vent
 await upload('boleta-adulterada.jpg', { ...boleta, total: '918.00' }, 'boleta_venta');
 await upload(
   'dni-especimen.jpg',
-  { dni: '45678913', apellidos: 'QUISPE MAMANI', nombres: 'ROSA ELENA', fecha_nacimiento: '1985-06-14', mrz: (await text('dni-especimen.mrz.txt')).trim() },
+  // Espécimen alterado: el número impreso termina en 3, pero el dígito del CUI y la MRZ (reverso) son del 45678912.
+  {
+    dni: '45678913-4',
+    apellidos: 'QUISPE MAMANI',
+    nombres: 'ROSA ELENA',
+    sexo: 'F',
+    fecha_nacimiento: '1985-06-14',
+    fecha_emision: '2026-03-15',
+    fecha_vencimiento: '2034-03-15',
+    mrz: (await text('dni-especimen.mrz.txt')).trim(),
+  },
+  'dni',
+);
+// DNI azul (versión anterior) de la misma persona: auténtico, pero vencido.
+await upload(
+  'dni-azul-especimen.jpg',
+  {
+    dni: '45678912-4',
+    apellidos: 'QUISPE MAMANI',
+    nombres: 'ROSA ELENA',
+    sexo: 'F',
+    fecha_nacimiento: '1985-06-14',
+    fecha_emision: '2018-03-15',
+    fecha_vencimiento: '2026-03-15',
+    mrz: (await text('dni-azul-especimen.mrz.txt')).trim(),
+  },
   'dni',
 );
 

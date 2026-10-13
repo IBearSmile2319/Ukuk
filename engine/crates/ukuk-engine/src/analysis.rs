@@ -185,7 +185,7 @@ pub fn run(req: AnalyzeRequest, today: NaiveDate) -> Result<AnalyzeResponse, Api
     let mut pdf = None;
     let mut xml = None;
     match kind {
-        Kind::Image => match ukuk_forensics::analyze_image(&bytes) {
+        Kind::Image => match ukuk_forensics::analyze_image(&bytes, req.document_type.is_some()) {
             Ok(a) => {
                 findings.extend(a.findings);
                 image = Some(a.report);
@@ -229,6 +229,7 @@ pub fn run(req: AnalyzeRequest, today: NaiveDate) -> Result<AnalyzeResponse, Api
     if !words.is_empty() && req.document_type != Some(DocumentType::Dni) {
         findings.extend(ukuk_forensics::analyze_layout(words));
     }
+    drop_mrz_clones(&mut findings, words);
     findings.extend(ukuk_forensics::compare_template(
         req.template.as_ref(),
         words,
@@ -248,9 +249,91 @@ pub fn run(req: AnalyzeRequest, today: NaiveDate) -> Result<AnalyzeResponse, Api
     })
 }
 
+/// Los rellenos «<<<<» de una MRZ se repiten entre sus líneas: un «clonado» con
+/// origen y destino dentro de la franja que ubicó el OCR no dice nada.
+fn drop_mrz_clones(findings: &mut Vec<Finding>, words: &[OcrWord]) {
+    let lines: Vec<_> = words
+        .iter()
+        .filter(|w| w.text.contains("<<"))
+        .map(|w| w.bbox)
+        .collect();
+    if lines.is_empty() {
+        return;
+    }
+    const MARGIN: f64 = 0.02;
+    let x0 = lines.iter().map(|b| b.x).fold(f64::MAX, f64::min) - MARGIN;
+    let y0 = lines.iter().map(|b| b.y).fold(f64::MAX, f64::min) - MARGIN;
+    let x1 = lines.iter().map(|b| b.x + b.w).fold(f64::MIN, f64::max) + MARGIN;
+    let y1 = lines.iter().map(|b| b.y + b.h).fold(f64::MIN, f64::max) + MARGIN;
+    let inside = |x: f64, y: f64, w: f64, h: f64| x >= x0 && y >= y0 && x + w <= x1 && y + h <= y1;
+    let source = |f: &Finding| -> Option<(f64, f64, f64, f64)> {
+        let r = f.evidence.as_ref()?.get("source_region")?;
+        Some((
+            r["x"].as_f64()?,
+            r["y"].as_f64()?,
+            r["w"].as_f64()?,
+            r["h"].as_f64()?,
+        ))
+    };
+    findings.retain(|f| {
+        let (Some(r), Some((sx, sy, sw, sh))) = (f.region.as_ref(), source(f)) else {
+            return true;
+        };
+        !(f.code == "copy_move.duplicated_region"
+            && inside(r.x, r.y, r.w, r.h)
+            && inside(sx, sy, sw, sh))
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ukuk_core::{BBox, Region};
+
+    #[test]
+    fn clones_inside_the_mrz_are_dropped() {
+        let line = |y: f64| OcrWord {
+            text: "I<PER45678912<4<<<<<<<<<<<<<<<".into(),
+            confidence: 0.9,
+            page: 1,
+            bbox: BBox {
+                x: 0.05,
+                y,
+                w: 0.88,
+                h: 0.05,
+            },
+        };
+        let words = [line(0.70), line(0.79), line(0.88)];
+        let clone = |y: f64, sy: f64| {
+            Finding::new(
+                "copy_move.duplicated_region",
+                Layer::Forensics,
+                Severity::Medium,
+                0.5,
+                "x",
+            )
+            .with_region(Region {
+                page: 1,
+                x: 0.2,
+                y,
+                w: 0.4,
+                h: 0.06,
+            })
+            .with_evidence(
+                json!({ "source_region": { "page": 1, "x": 0.1, "y": sy, "w": 0.4, "h": 0.06 } }),
+            )
+        };
+        let mut f = vec![clone(0.79, 0.70), clone(0.79, 0.30), clone(0.40, 0.30)];
+        drop_mrz_clones(&mut f, &words);
+        assert_eq!(
+            f.len(),
+            2,
+            "solo se descarta el que está entero dentro de la MRZ"
+        );
+        let mut untouched = vec![clone(0.79, 0.70)];
+        drop_mrz_clones(&mut untouched, &[]);
+        assert_eq!(untouched.len(), 1);
+    }
 
     #[test]
     fn mime_normalization() {

@@ -35,8 +35,9 @@ pub struct CopyMoveMatch {
     pub target: (u32, u32, u32, u32),
     pub shift: (i32, i32),
     pub blocks: usize,
-    /// Desplazamiento casi horizontal o vertical sobre un documento con fondo
-    /// claro: es lo que produce texto repetido en filas o columnas (ambiguo).
+    /// Desplazamiento casi horizontal o vertical: es lo que producen el texto repetido
+    /// en filas o columnas, los rellenos «<<<<» de una MRZ o una pared de ladrillos
+    /// detrás de la foto (ambiguo, en cualquier fondo).
     pub repeated_layout: bool,
     /// Imagen de documento (fondo claro). Allí los glifos repetidos son normales,
     /// así que un clonado de texto nunca es concluyente por sí solo.
@@ -181,7 +182,7 @@ pub fn detect(gray: &GrayImage) -> Vec<CopyMoveMatch> {
             ),
             shift: (dx * f as i32, dy * f as i32),
             blocks: srcs.len(),
-            repeated_layout: doc_like && dx.abs().min(dy.abs()) <= 2 * BLOCK as i32,
+            repeated_layout: dx.abs().min(dy.abs()) <= 2 * BLOCK as i32,
             document: doc_like,
         });
         if out.len() >= MAX_REPORTS {
@@ -302,6 +303,25 @@ mod tests {
         assert!(!m[0].repeated_layout && m[0].document);
         let f = finding(&m[0], Orientation::NoTransforms, 600, 800);
         assert_eq!(f.severity, Severity::Medium);
+    }
+
+    #[test]
+    fn horizontal_repeats_on_dark_background_are_ambiguous() {
+        // MRZ de un DNI azul: «<<<<» repetidos en la misma línea, sobre fondo oscuro.
+        let mut g = GrayImage::from_pixel(600, 400, ::image::Luma([90]));
+        let glyph = noise_gray(40, 40, 9);
+        for i in 0..6 {
+            overlay(&mut g, &glyph, i64::from(40 + i * 80), 300);
+        }
+        let m = detect(&g);
+        assert!(!m.is_empty());
+        for m in &m {
+            assert!(m.repeated_layout && !m.document, "{m:?}");
+            assert_eq!(
+                finding(m, Orientation::NoTransforms, 600, 400).severity,
+                Severity::Low
+            );
+        }
     }
 
     #[test]

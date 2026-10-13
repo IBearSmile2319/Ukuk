@@ -189,9 +189,9 @@ pub fn check(
             Finding::new(
                 "dates.document_expired",
                 Layer::Consistency,
-                Severity::Medium,
-                0.9,
-                format!("El documento venció el {expiry}."),
+                Severity::High,
+                0.95,
+                format!("El documento venció el {expiry}: no sirve como identificación vigente."),
             )
             .with_evidence(
                 json!({ "fecha_vencimiento": expiry.to_string(), "today": today.to_string() }),

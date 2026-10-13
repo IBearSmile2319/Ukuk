@@ -200,7 +200,7 @@ mod tests {
         assert_eq!(f[0].code, "exif.editing_software");
         assert_eq!(f[0].severity, Severity::High);
         // la imagen sigue siendo decodificable
-        assert!(crate::image::analyze_image(&bytes).is_ok());
+        assert!(crate::image::analyze_image(&bytes, false).is_ok());
     }
 
     #[test]

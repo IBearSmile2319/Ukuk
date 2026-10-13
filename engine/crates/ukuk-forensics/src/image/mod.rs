@@ -118,7 +118,9 @@ fn downscale(img: &DynamicImage, max_side: u32) -> DynamicImage {
     }
 }
 
-pub fn analyze_image(bytes: &[u8]) -> Result<ImageAnalysis, ImageError> {
+/// `document`: el cliente declaró que es un documento (DNI, boleta…), aunque el fondo
+/// no sea claro (un DNI azul): un clonado de texto ahí nunca es concluyente.
+pub fn analyze_image(bytes: &[u8], document: bool) -> Result<ImageAnalysis, ImageError> {
     let (img, orientation, format) = decode(bytes)?;
     let (raw_w, raw_h) = (img.width(), img.height());
     let (width, height) = if swaps_axes(orientation) {
@@ -160,7 +162,8 @@ pub fn analyze_image(bytes: &[u8]) -> Result<ImageAnalysis, ImageError> {
         None
     };
 
-    for m in copy_move::detect(&img.to_luma8()) {
+    for mut m in copy_move::detect(&img.to_luma8()) {
+        m.document |= document;
         findings.push(copy_move::finding(&m, orientation, raw_w, raw_h));
     }
 
@@ -257,7 +260,7 @@ mod tests {
     #[test]
     fn analyzes_jpeg() {
         let img = textured_rgb(640, 480, 1);
-        let a = analyze_image(&encode_jpeg(&img, 90)).unwrap();
+        let a = analyze_image(&encode_jpeg(&img, 90), false).unwrap();
         assert_eq!((a.report.width, a.report.height), (640, 480));
         assert_eq!(a.report.dhash.len(), 16);
         assert!(a.report.ela.is_some());
@@ -269,7 +272,7 @@ mod tests {
     #[test]
     fn analyzes_png() {
         let img = DynamicImage::ImageRgb8(textured_rgb(320, 240, 2));
-        let a = analyze_image(&encode_png(&img)).unwrap();
+        let a = analyze_image(&encode_png(&img), false).unwrap();
         assert_eq!(a.format, ImageFormat::Png);
         let codes: Vec<_> = a.findings.iter().map(|f| f.code.as_str()).collect();
         assert!(codes.contains(&"image.low_resolution"));
@@ -278,8 +281,8 @@ mod tests {
 
     #[test]
     fn rejects_garbage() {
-        assert!(analyze_image(b"not an image at all").is_err());
-        assert!(analyze_image(&[0xFF, 0xD8, 0xFF, 0xE0, 0, 0]).is_err());
+        assert!(analyze_image(b"not an image at all", false).is_err());
+        assert!(analyze_image(&[0xFF, 0xD8, 0xFF, 0xE0, 0, 0], false).is_err());
     }
 
     #[test]

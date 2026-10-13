@@ -294,9 +294,9 @@ pub fn parse_td1(input: &str, today: NaiveDate) -> MrzAnalysis {
         findings.push(
             finding(
                 "mrz.expired",
-                Severity::Medium,
-                0.9,
-                format!("Según la MRZ, el documento venció el {e}."),
+                Severity::High,
+                0.95,
+                format!("Según la MRZ, el documento venció el {e}: no sirve como identificación vigente."),
             )
             .with_evidence(json!({ "expiry_date": e.to_string(), "today": today.to_string() })),
         );
