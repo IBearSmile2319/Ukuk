@@ -47,6 +47,8 @@ node demo/seed.mjs     # en otra terminal: cliente de demostración con datos en
 Abre http://localhost:5173, entra al portal con la llave que imprime el script y prueba los cuatro
 servicios. Siniestros trae un simulador de WhatsApp, así que no necesitas una cuenta de Meta.
 
+En un servidor (EC2 con HTTPS): [`docs/despliegue.md`](docs/despliegue.md).
+
 Todo en Docker (la API sirve la web en http://localhost:3000):
 `docker compose up -d db engine && docker compose run --rm migrate && docker compose up api`.
 

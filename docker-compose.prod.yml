@@ -1,0 +1,74 @@
+# Servidor (EC2): solo Caddy queda expuesto (80/443, HTTPS automático). La base y el motor
+# viven en la red interna de Docker. Los secretos vienen de .env (ver .env.prod.example).
+#   docker compose -f docker-compose.prod.yml up -d --build
+#   docker compose -f docker-compose.prod.yml run --rm migrate
+services:
+  db:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ukuk
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "postgres"]
+      interval: 10s
+
+  engine:
+    build: ./engine
+    restart: unless-stopped
+    environment:
+      UKUK_ENGINE_ADDR: 0.0.0.0:8090
+      UKUK_DATA_DIR: /data
+    volumes: [enginedata:/data]
+
+  migrate:
+    build: { context: ., dockerfile: api/Dockerfile }
+    profiles: [tools]
+    command: ["node", "-e", "require('./dist/db/migrate').migrate(process.env.MIGRATION_DATABASE_URL, console.log)"]
+    environment:
+      MIGRATION_DATABASE_URL: postgres://postgres:${POSTGRES_PASSWORD}@db:5432/ukuk
+      UKUK_APP_DB_PASSWORD: ${UKUK_APP_DB_PASSWORD:?Falta UKUK_APP_DB_PASSWORD en .env}
+    depends_on:
+      db: { condition: service_healthy }
+
+  api:
+    build: { context: ., dockerfile: api/Dockerfile }
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgres://ukuk_app:${UKUK_APP_DB_PASSWORD}@db:5432/ukuk
+      UKUK_ENGINE_URL: http://engine:8090
+      UKUK_STORAGE_DIR: /data/blobs
+      UKUK_PUBLIC_BASE_URL: https://${UKUK_DOMAIN:?Falta UKUK_DOMAIN en .env}
+      UKUK_MASTER_KEY: ${UKUK_MASTER_KEY:?Falta UKUK_MASTER_KEY en .env}
+      UKUK_LINK_SECRET: ${UKUK_LINK_SECRET:?Falta UKUK_LINK_SECRET en .env}
+      UKUK_ADMIN_TOKEN: ${UKUK_ADMIN_TOKEN:?Falta UKUK_ADMIN_TOKEN en .env}
+      UKUK_OCR: ${UKUK_OCR:-tesseract}
+      AWS_REGION: ${AWS_REGION:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      WHATSAPP_VERIFY_TOKEN: ${WHATSAPP_VERIFY_TOKEN:-}
+      WHATSAPP_APP_SECRET: ${WHATSAPP_APP_SECRET:-}
+      WHATSAPP_ACCESS_TOKEN: ${WHATSAPP_ACCESS_TOKEN:-}
+    volumes: [blobs:/data]
+    depends_on:
+      db: { condition: service_healthy }
+      engine: { condition: service_started }
+
+  caddy:
+    image: caddy:2.8
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      UKUK_DOMAIN: ${UKUK_DOMAIN}
+      UKUK_ADMIN_ALLOW: ${UKUK_ADMIN_ALLOW:-127.0.0.1/32}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [api]
+
+volumes:
+  pgdata:
+  enginedata:
+  blobs:
+  caddydata:

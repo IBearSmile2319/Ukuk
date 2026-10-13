@@ -20,7 +20,9 @@ import { Level, ListDocumentsQuery, ReviewDto, UploadDocumentDto, normalizeIssue
 import { explainFindings } from './explanation';
 import { AcceptedMime, sniffMime } from './file-type';
 import { OCR_PROVIDER, OcrProvider } from './ocr/ocr.provider';
-import { readabilityFinding, scoreDocument } from './scoring';
+import { OCR_FIELD_OF, OCR_MAX_CONFIDENCE, dniFromOcr, mrzFromOcr } from './id-ocr';
+import { numberTokens, sameNumbers } from './reuse';
+import { MIN_READABLE_WORDS, readabilityFinding, scoreDocument } from './scoring';
 import { TemplateRow, TemplatesService, templateLabel } from './templates.service';
 import { EXTERNAL_VALIDATORS, ExternalCheck, ExternalValidator, externalFinding } from './validators/external-validator';
 
@@ -67,6 +69,19 @@ export function mergeExtracted(provided: Record<string, string>, engine: Analyze
     set('fecha_emision', xml.fecha_emision);
   }
   return out;
+}
+
+function idFromOcrFinding(derived: Record<string, string>): Finding {
+  const read = [derived.mrz && 'la MRZ (dígitos de control válidos)', derived.dni && `el número ${derived.dni}`].filter(Boolean);
+  return {
+    code: 'extraction.id_from_ocr',
+    layer: 'extraction',
+    severity: 'info',
+    confidence: 1,
+    message: `Se leyó del documento ${read.join(' y ')}${derived.mrz && derived.dni ? ': se cruzaron entre sí.' : '.'}`,
+    region: null,
+    evidence: { fields: Object.keys(derived) },
+  };
 }
 
 function parseFields(raw?: string): Record<string, string> {
@@ -196,6 +211,9 @@ export class DocumentsService {
     const findings: Finding[] = [];
     let engineRes: AnalyzeResponse | null = null;
     let words: OcrWord[] = [];
+    // Datos del DNI leídos por el OCR cuando el cliente no los envió (MRZ verificada, número).
+    let derived: Record<string, string> = {};
+    let withOcr: Record<string, string> = provided;
     let template: TemplateRow | undefined;
     let external: ExternalCheck[] = [];
 
@@ -220,6 +238,9 @@ export class DocumentsService {
       await this.stage(tenant, id, 'ocr', { provider: this.ocr.name, words: words.length });
       const unreadable = findings.some((f) => f.code === 'ocr.failed') ? null : readabilityFinding(mime, this.ocr.name, words.length);
       if (unreadable) findings.push(unreadable);
+      derived = dto.document_type === 'dni' && words.length ? await this.idFieldsFromOcr(words, provided) : {};
+      if (Object.keys(derived).length) findings.push(idFromOcrFinding(derived));
+      withOcr = { ...derived, ...provided };
 
       if (dto.document_type && issuer) {
         const date = /^\d{4}-\d{2}-\d{2}/.test(provided.fecha_emision ?? '')
@@ -233,15 +254,20 @@ export class DocumentsService {
         mime_type: mime,
         ...(dto.document_type ? { document_type: dto.document_type } : {}),
         ...(words.length ? { ocr_words: words } : {}),
-        ...(Object.keys(provided).length ? { fields: provided } : {}),
+        ...(Object.keys(withOcr).length ? { fields: withOcr } : {}),
         ...(template
           ? { template: { id: template.id, label: templateLabel(template), anchors: template.anchors, tolerance: template.tolerance } }
           : {}),
       });
+      for (const f of engineRes.findings) {
+        if (derived[OCR_FIELD_OF[f.code]] === undefined) continue;
+        f.confidence = Math.min(f.confidence, OCR_MAX_CONFIDENCE);
+        f.message += ' (dato leído por OCR: confírmelo en el documento)';
+      }
       findings.push(...engineRes.findings);
       await this.stage(tenant, id, 'engine', { engine_version: engineRes.engine_version, findings: engineRes.findings.length });
 
-      const fields = mergeExtracted(provided, engineRes);
+      const fields = mergeExtracted(withOcr, engineRes);
       external = await this.runValidators({ tenant, documentType: dto.document_type ?? null, fields });
       for (const check of external) {
         for (const f of check.findings) {
@@ -254,9 +280,9 @@ export class DocumentsService {
     }
 
     const dhash = dhashToSigned(engineRes?.image?.dhash);
-    const extracted = mergeExtracted(provided, engineRes);
+    const extracted = mergeExtracted(withOcr, engineRes);
 
-    findings.push(...(await this.db.withTenant(tenant.id, (db) => this.reuseFindings(db, id, dhash))));
+    findings.push(...(await this.db.withTenant(tenant.id, (db) => this.reuseFindings(db, id, dhash, words, !!dto.document_type))));
     const score = scoreDocument(findings, { templateMatched: !!template });
     // Claude solo redacta; se llama fuera de la transacción y no toca puntaje ni veredicto.
     const explanation = await explainFindings(this.llm, {
@@ -340,8 +366,18 @@ export class DocumentsService {
     );
   }
 
+  /** MRZ y número del DNI leídos por el OCR; la MRZ solo se usa si sus dígitos de control cuadran. */
+  private async idFieldsFromOcr(words: OcrWord[], provided: Record<string, string>): Promise<Record<string, string>> {
+    const out: Record<string, string> = {};
+    const mrz = provided.mrz ? null : mrzFromOcr(words);
+    if (mrz && (await this.engine.checkMrz(mrz).catch(() => null))?.valid) out.mrz = mrz;
+    const dni = provided.dni ? null : dniFromOcr(words);
+    if (dni) out.dni = dni;
+    return out;
+  }
+
   /** La misma foto o archivo ya presentado antes por este cliente. */
-  private async reuseFindings(db: Queryable, id: string, dhash: string | null): Promise<Finding[]> {
+  private async reuseFindings(db: Queryable, id: string, dhash: string | null, words: OcrWord[], isDocument: boolean): Promise<Finding[]> {
     const out: Finding[] = [];
     const self = await one<{ sha256: string }>(db, 'SELECT sha256 FROM documents WHERE id = $1', [id]);
     const same = await many<{ id: string; external_ref: string | null; created_at: Date }>(
@@ -366,15 +402,23 @@ export class DocumentsService {
         },
       });
     }
-    if (dhash !== null) {
-      const similar = await many<{ id: string; external_ref: string | null; hamming: number }>(
+    // Un documento sin texto legible no se puede distinguir de otro del mismo formato por su
+    // huella: ahí solo cuenta el archivo idéntico (arriba).
+    if (dhash !== null && !(isDocument && words.length < MIN_READABLE_WORDS)) {
+      const candidates = await many<{ id: string; external_ref: string | null; hamming: number; ocr_words: OcrWord[] | null }>(
         db,
-        `SELECT id, external_ref, bit_count((dhash # $1::bigint)::bit(64))::int AS hamming FROM documents
+        `SELECT id, external_ref, ocr_words, bit_count((dhash # $1::bigint)::bit(64))::int AS hamming FROM documents
           WHERE dhash IS NOT NULL AND id <> $2 AND sha256 <> $3
             AND bit_count((dhash # $1::bigint)::bit(64)) <= $4
-          ORDER BY hamming, created_at LIMIT 5`,
+          ORDER BY hamming, created_at LIMIT 20`,
         [dhash, id, self!.sha256, REUSE_MAX_HAMMING],
       );
+      // En un documento con texto, la huella solo dice "mismo formato": se exige que también
+      // coincidan sus números. En una foto sin tipo de documento basta la huella.
+      const mine = numberTokens(words);
+      const similar = words.length < MIN_READABLE_WORDS
+        ? candidates.slice(0, 5)
+        : candidates.filter((c) => sameNumbers(mine, numberTokens(c.ocr_words ?? [])) === true).slice(0, 5);
       if (similar.length) {
         const best = similar[0];
         out.push({

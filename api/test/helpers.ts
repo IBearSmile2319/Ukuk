@@ -142,6 +142,13 @@ export class FakeEngine {
     };
   }
 
+  /** Por defecto ninguna MRZ leída por OCR pasa; los tests que la necesiten lo reemplazan. */
+  checkMrzImpl?: (mrz: string) => any;
+  async checkMrz(mrz: string) {
+    this.calls.push({ method: 'checkMrz', args: [mrz] });
+    return this.checkMrzImpl ? this.checkMrzImpl(mrz) : { valid: false, findings: [] };
+  }
+
   async validateRuc(ruc: string) {
     return { valid: /^(10|15|16|17|20)\d{9}$/.test(ruc), kind: 'persona_juridica' };
   }

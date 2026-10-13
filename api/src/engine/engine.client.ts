@@ -5,6 +5,8 @@ import {
   AnalyzeResponse,
   BatchScreenRequest,
   BatchScreenResponse,
+  Finding,
+  MrzResult,
   ScreenRequest,
   ScreenResponse,
   WatchlistCategory,
@@ -47,6 +49,10 @@ export class EngineClient {
 
   analyze(req: AnalyzeRequest): Promise<AnalyzeResponse> {
     return this.call('POST', '/v1/analyze', req);
+  }
+
+  checkMrz(mrz: string): Promise<MrzResult & { findings: Finding[] }> {
+    return this.call('POST', '/v1/rules/mrz', { mrz });
   }
 
   validateRuc(ruc: string): Promise<{ valid: boolean; kind: string }> {

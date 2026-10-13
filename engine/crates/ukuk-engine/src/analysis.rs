@@ -224,9 +224,19 @@ pub fn run(req: AnalyzeRequest, today: NaiveDate) -> Result<AnalyzeResponse, Api
     }
 
     let words = req.ocr_words.as_deref().unwrap_or_default();
-    // Un carnet mezcla a propósito tamaños en una misma línea (etiqueta pequeña, dato
-    // grande): ahí solo vale la comparación con la plantilla de su versión.
-    if !words.is_empty() && req.document_type != Some(DocumentType::Dni) {
+    // La revisión de diseño genérica solo vale en comprobantes, donde el texto va en una
+    // misma letra. Un carnet o un acta mezclan tamaños a propósito (etiqueta pequeña, dato
+    // grande): ahí solo vale la comparación con la plantilla de su formato.
+    let receipt = matches!(
+        req.document_type,
+        Some(
+            DocumentType::BoletaVenta
+                | DocumentType::Factura
+                | DocumentType::BoletaPago
+                | DocumentType::ReciboServicio
+        )
+    );
+    if !words.is_empty() && receipt {
         findings.extend(ukuk_forensics::analyze_layout(words));
     }
     drop_mrz_clones(&mut findings, words);

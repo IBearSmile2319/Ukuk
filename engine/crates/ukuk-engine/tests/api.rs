@@ -273,10 +273,10 @@ async fn analyze_dni_with_mrz_and_fields() {
     assert!(!c.contains(&"mrz.surname_mismatch".to_string()));
 }
 
-/// Un carnet mezcla tamaños a propósito (CUI grande junto a etiquetas pequeñas): la
-/// revisión de diseño genérica no aplica al DNI, sí a una boleta.
+/// Carnets y actas mezclan tamaños a propósito (CUI grande junto a etiquetas pequeñas): la
+/// revisión de diseño genérica solo aplica a comprobantes.
 #[tokio::test]
-async fn layout_check_skips_id_cards() {
+async fn layout_check_only_for_receipts() {
     let mut words = Vec::new();
     for (li, line) in [
         ["Apellidos", "Nombres", "Sexo", "PER"],
@@ -311,7 +311,9 @@ async fn layout_check_skips_id_cards() {
         }
     };
     assert!(layout("boleta_venta").await > 0);
-    assert_eq!(layout("dni").await, 0);
+    for t in ["dni", "acta", "certificado", "other"] {
+        assert_eq!(layout(t).await, 0, "{t}");
+    }
 }
 
 #[tokio::test]

@@ -1,0 +1,21 @@
+# HTTPS automático (Let's Encrypt) para UKUK_DOMAIN. La cámara de la página de captura y el
+# webhook de WhatsApp solo funcionan con HTTPS.
+{$UKUK_DOMAIN} {
+	encode zstd gzip
+
+	# Las rutas de administración solo desde las IP de UKUK_ADMIN_ALLOW (separadas por espacio).
+	@admin_bloqueado {
+		path /admin/*
+		not remote_ip {$UKUK_ADMIN_ALLOW}
+	}
+	respond @admin_bloqueado 404
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	reverse_proxy api:3000
+}

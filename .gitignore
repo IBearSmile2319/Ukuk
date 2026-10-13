@@ -9,3 +9,4 @@ var/
 var/
 evaluacion/
 *.local.csv
+.DS_Store

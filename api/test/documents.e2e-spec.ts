@@ -15,7 +15,8 @@ class FakeOcr {
 
 const word = (text: string, x: number, y: number) => ({ text, confidence: 0.99, page: 1, bbox: { x, y, w: 0.1, h: 0.02 } });
 /** Un documento legible por defecto: con menos de 5 palabras se pediría otra foto. */
-const readable = () => ['BOLETA', 'DE', 'VENTA', 'TOTAL', '118.00'].map((t, i) => word(t, 0.1 * (i + 1), 0.5));
+const readable = (numbers = ['B001-00004321', '15/03/2026', '20999000119', '118.00']) =>
+  ['BOLETA', 'DE', 'VENTA', 'TOTAL', ...numbers].map((t, i) => word(t, 0.1 * (i + 1), 0.5));
 
 describe('servicio documental', () => {
   let ctx: TestContext;
@@ -115,6 +116,32 @@ describe('servicio documental', () => {
     expect(usage.body.lines.find((l: any) => l.description === 'forensic').quantity).toBe(1);
   });
 
+  it('DNI con frente y reverso en una imagen: lee la MRZ y el número, y los cruza', async () => {
+    const t = await createTenant(ctx);
+    ocr.words = [
+      word('CUI', 0.7, 0.05), word('45678913-4', 0.7, 0.1), word('Apellidos', 0.3, 0.2), word('QUISPE', 0.3, 0.25), word('MAMANI', 0.45, 0.25),
+      word('I<PER45678912<4<<<<<<<<Ke<<<<<<', 0.05, 0.7), word('8506140F3403152PER<<<<<<<<<<<6', 0.05, 0.76), word('QUISPE<<ROSA<ELENA<<<<<<<<<<<<', 0.05, 0.82),
+    ];
+    engine.checkMrzImpl = (mrz: string) => ({ valid: mrz.startsWith('I<PER45678912<4<<<<<<<<<<<<<<<\n'), findings: [] });
+    engine.analyzeImpl = async (req: any) => ({
+      ...(await new FakeEngine().analyze(req)),
+      findings: [
+        { code: 'dni.check_digit_mismatch', layer: 'consistency', severity: 'high', confidence: 0.9, message: 'Dígito de verificación incorrecto.', region: null, evidence: null },
+        { code: 'mrz.dni_mismatch', layer: 'consistency', severity: 'high', confidence: 0.9, message: 'El DNI impreso no coincide con la MRZ.', region: null, evidence: null },
+      ],
+    });
+    const res = await upload(t.key, jpeg(), { document_type: 'dni' }).expect(201);
+    const call = engine.calls.filter((c) => c.method === 'analyze').pop()!.args[0] as any;
+    expect(call.fields).toEqual({ dni: '45678913-4', mrz: expect.stringMatching(/^I<PER45678912<4<{15}\n/) });
+    const mismatch = res.body.findings.find((f: any) => f.code === 'mrz.dni_mismatch');
+    expect(mismatch.confidence).toBe(0.86);
+    expect(mismatch.message).toMatch(/leído por OCR/);
+    expect(res.body.findings.map((f: any) => f.code)).toContain('extraction.id_from_ocr');
+    // Dos desacuerdos leídos por OCR: a revisión, no rechazo automático.
+    expect(res.body.verdict).toBe('revisar');
+    engine.checkMrzImpl = undefined;
+  });
+
   it('una foto sin texto legible no se aprueba: pide otra foto', async () => {
     const t = await createTenant(ctx);
     ocr.words = [];
@@ -138,6 +165,16 @@ describe('servicio documental', () => {
     expect(dup.evidence.prior_document_id).toBe(first.body.id);
     expect(dup.evidence.hamming).toBe(0);
     expect(third.body.findings.some((f: any) => f.code === 'reuse.same_file')).toBe(false);
+    // Mismo formato (misma huella) pero otro documento: sus números no coinciden, no es reuso.
+    ocr.words = readable(['B001-00009999', '02/11/2025', '20999000224', '736.40']);
+    const fourth = await upload(t.key, jpeg()).expect(201);
+    expect(fourth.body.findings.filter((f: any) => f.layer === 'reuse')).toEqual([]);
+    // Un documento ilegible solo se compara por archivo idéntico: la huella sola no distingue dos DNI.
+    ocr.words = [];
+    await upload(t.key, jpeg(), { document_type: 'dni' }).expect(201);
+    const unreadable = await upload(t.key, jpeg(), { document_type: 'dni' }).expect(201);
+    expect(unreadable.body.findings.filter((f: any) => f.layer === 'reuse')).toEqual([]);
+    ocr.words = readable();
     // Otro cliente con la misma imagen no ve el historial ajeno.
     const other = await createTenant(ctx, { modules: ['documents'] });
     const o = await upload(other.key, img).expect(201);
@@ -258,7 +295,7 @@ describe('servicio documental', () => {
     expect(checked.body.confidence_note).toBeNull();
     const call = engine.calls.filter((c) => c.method === 'analyze').pop()!.args[0] as any;
     expect(call.template.anchors).toHaveLength(2);
-    expect(call.ocr_words).toHaveLength(6);
+    expect(call.ocr_words).toHaveLength(1 + readable().length);
 
     const old = await upload(t.key, jpeg(), {
       document_type: 'boleta_venta',

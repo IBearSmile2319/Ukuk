@@ -31,6 +31,12 @@ export async function migrate(connectionString: string, log: (m: string) => void
         throw new Error(`Falló la migración ${file}: ${(err as Error).message}`);
       }
     }
+    // La migración 001 crea el rol de la app con una clave de desarrollo; en un servidor se cambia.
+    const appPassword = process.env.UKUK_APP_DB_PASSWORD;
+    if (appPassword) {
+      await client.query(`ALTER ROLE ukuk_app PASSWORD ${client.escapeLiteral(appPassword)}`);
+      log('clave del rol ukuk_app actualizada');
+    }
   } finally {
     await client.end();
   }

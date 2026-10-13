@@ -129,6 +129,34 @@ explicar y auditar, como pide la SBS para el riesgo de modelo. El porqué de Rus
   ruido de fondo de cada campo frente al resto del documento) y tener plantillas de cada formato.
   Hoy solo hay revisiones genéricas (compresión, clonado, tamaño de palabra).
 
+### Medición con documentos reales
+
+Un conjunto de documentos reales con fraude confirmado (no está en el repositorio: se evalúa en
+local con `demo/evaluar.mjs` y solo se guardan cifras).
+
+**Actas de nacimiento: 167 documentos, 21 con fraude confirmado.**
+
+| | Primera corrida | Tras quitar el ruido |
+|---|---|---|
+| Actas legítimas con alarma | 97 % | **1 %** |
+| Fraudes confirmados marcados | 21 de 21, pero por ruido | **1 de 21** |
+
+El "100 %" de la primera corrida no valía nada: el sistema marcaba casi todo. Al quitar el ruido
+quedó a la vista la verdad: **hoy Ukuk no detecta esas adulteraciones**. El ruido venía de dos
+errores, ya corregidos:
+- La huella de imagen de 64 bits solo capta el diseño del formulario: 33 actas legítimas tenían
+  la misma huella que otra acta distinta. Ahora, en documentos con texto, el reuso exige que
+  también coincidan sus números (fechas, DNI, número de acta).
+- La revisión de diseño genérica marcaba los cambios de tamaño propios del formulario. Ahora solo
+  corre en comprobantes.
+
+**DNI: 435 imágenes, sin etiquetas de fraude.**
+- Con la lectura automática del MRZ y del número, el OCR local leyó datos en 35. En 26 el MRZ
+  tenía todos sus dígitos válidos, y se encontraron 2 dígitos de CUI que no cuadran, 1 número
+  distinto del MRZ y 4 DNI vencidos. Las alertas leídas por OCR van a "revisar" porque pueden ser
+  errores de lectura.
+- El OCR local no lee 3 de cada 4 anversos: hace falta Textract y recortar el carnet.
+
 ### Pruebas automáticas
 
 | Parte | Pruebas | Resultado |
@@ -206,7 +234,8 @@ marcada como simulación.
       campos con otra nitidez, otro ruido de fondo u otra cuadrícula de compresión.
 - [ ] Tipos propios para actas de nacimiento, matrimonio y defunción, con sus reglas de fechas y
       plantillas por formato.
-- [ ] DNI con los dos lados en una imagen: leer el frente y el MRZ con OCR y cruzarlos solos.
+- [x] DNI con los dos lados en una imagen: el MRZ y el número del frente se leen con OCR y se
+      cruzan solos.
 
 - [ ] Desplegar en AWS en la región acordada, con dominio y correo propios.
 - [ ] Activar Claude (`ANTHROPIC_API_KEY`) y Amazon Textract: Tesseract no lee bien las fotos de
@@ -238,7 +267,8 @@ marcada como simulación.
 
 - [x] Aislamiento por cliente, cifrado y auditoría inalterable.
 - [ ] Camino a ISO 27001 o SOC 2.
-- [ ] Límite de tasa en las rutas públicas (formulario y página de captura).
+- [x] Límite de tasa en las rutas públicas (formulario y página de captura).
+- [x] Archivos para el servidor: [docs/despliegue.md](despliegue.md).
 
 ## Probarlo tú mismo
 

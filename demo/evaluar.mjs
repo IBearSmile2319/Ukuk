@@ -112,6 +112,10 @@ const top = (xs, n = 8) =>
 const flagged = (r) => r.verdict === 'revisar' || r.verdict === 'rechazar';
 console.log(`\nDocumentos: ${rows.length} (tipo ${tipo}) · errores: ${count(rows, (r) => r.verdict === 'error')}`);
 for (const v of ['aprobar', 'revisar', 'rechazar']) console.log(`  ${v.padEnd(9)} ${count(rows, (r) => r.verdict === v)}`);
+const why = (r) => (/→ 413/.test(r.error) ? 'archivo de más de 25 MB' : r.error);
+const reasons = {};
+for (const r of rows.filter((r) => r.verdict === 'error')) reasons[why(r)] = (reasons[why(r)] ?? 0) + 1;
+for (const [reason, n] of Object.entries(reasons)) console.log(`  error: ${n} × ${reason}`);
 
 const bad = rows.filter((r) => r.label === 'malo');
 const good = rows.filter((r) => r.label === 'bueno');
