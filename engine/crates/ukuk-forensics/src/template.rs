@@ -10,6 +10,9 @@ use crate::layout::{group_lines, median};
 
 pub const DEFAULT_TOLERANCE: f64 = 0.03;
 
+/// (página, caja encontrada, desplazamiento del centro respecto de lo esperado).
+type AnchorMatch = (u32, BBox, (f64, f64));
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Anchor {
     pub text: String,
@@ -117,7 +120,7 @@ pub fn compare_template(template: Option<&Template>, words: &[OcrWord]) -> Vec<F
         .unwrap_or(DEFAULT_TOLERANCE);
 
     // Mejor coincidencia por ancla (la más cercana a la posición esperada).
-    let matched: Vec<Option<(u32, BBox, (f64, f64))>> = t
+    let matched: Vec<Option<AnchorMatch>> = t
         .anchors
         .iter()
         .map(|a| {

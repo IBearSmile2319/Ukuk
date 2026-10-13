@@ -71,7 +71,20 @@ fn pair_weight(a: &NameToken, b: &NameToken) -> f64 {
 }
 
 pub fn name_similarity(q: &PreparedName, c: &PreparedName) -> NameScore {
-    let (nq, nc) = (q.tokens.len(), c.tokens.len());
+    let refs: Vec<&NameToken> = c.tokens.iter().collect();
+    score_tokens(&q.tokens, &refs, |i, j| {
+        token_similarity(&q.tokens[i], refs[j])
+    })
+}
+
+/// Núcleo del puntaje; `sim(i, j)` da (similitud, Jaro-Winkler) del token `i`
+/// de la consulta con el `j` del candidato (permite cachear en el índice).
+pub(crate) fn score_tokens(
+    q: &[NameToken],
+    c: &[&NameToken],
+    mut sim: impl FnMut(usize, usize) -> (f64, f64),
+) -> NameScore {
+    let (nq, nc) = (q.len(), c.len());
     let empty = NameScore {
         score: 0.0,
         matched: 0,
@@ -79,35 +92,35 @@ pub fn name_similarity(q: &PreparedName, c: &PreparedName) -> NameScore {
         candidate_tokens: nc,
         mean_similarity: 0.0,
     };
-    if nq == 0 || nc == 0 {
+    // Las máscaras de uso admiten hasta 64 tokens por lado (de sobra para nombres).
+    if nq == 0 || nc == 0 || nq > 64 || nc > 64 {
         return empty;
     }
     let mut pairs: Vec<(f64, f64, usize, usize)> = Vec::with_capacity(nq * nc);
-    for (i, a) in q.tokens.iter().enumerate() {
-        for (j, b) in c.tokens.iter().enumerate() {
-            let (s, jw) = token_similarity(a, b);
+    for (i, a) in q.iter().enumerate() {
+        for (j, b) in c.iter().enumerate() {
+            let (s, jw) = sim(i, j);
             let is_initial = a.initial || b.initial;
             if (is_initial && s > 0.0) || s >= MIN_TOKEN_SIM {
                 pairs.push((s, jw, i, j));
             }
         }
     }
-    // Asignación voraz por similitud descendente; los tokens completos primero.
-    pairs.sort_by(|x, y| y.0.total_cmp(&x.0).then(x.2.cmp(&y.2)).then(x.3.cmp(&y.3)));
-    let mut used_q = vec![false; nq];
-    let mut used_c = vec![false; nc];
+    // Asignación voraz por similitud descendente.
+    pairs.sort_unstable_by(|x, y| y.0.total_cmp(&x.0).then(x.2.cmp(&y.2)).then(x.3.cmp(&y.3)));
+    let (mut used_q, mut used_c) = (0u64, 0u64);
     let (mut num, mut den, mut sim_sum, mut sim_n, mut matched) = (0.0, 0.0, 0.0, 0usize, 0usize);
     for (s, jw, i, j) in pairs {
-        if used_q[i] || used_c[j] {
+        if used_q & (1 << i) != 0 || used_c & (1 << j) != 0 {
             continue;
         }
-        used_q[i] = true;
-        used_c[j] = true;
-        let w = pair_weight(&q.tokens[i], &c.tokens[j]);
+        used_q |= 1 << i;
+        used_c |= 1 << j;
+        let w = pair_weight(&q[i], c[j]);
         num += s * w;
         den += w;
         matched += 1;
-        if !(q.tokens[i].initial || c.tokens[j].initial) {
+        if !(q[i].initial || c[j].initial) {
             sim_sum += jw;
             sim_n += 1;
         }
@@ -120,15 +133,19 @@ pub fn name_similarity(q: &PreparedName, c: &PreparedName) -> NameScore {
         std::cmp::Ordering::Greater => (EXTRA_TOKEN_FACTOR, 1.0),
         std::cmp::Ordering::Equal => (1.0, 1.0),
     };
-    let unmatched = |tokens: &[NameToken], used: &[bool], f: f64| -> f64 {
-        tokens
-            .iter()
-            .zip(used)
-            .filter(|(_, u)| !**u)
-            .map(|(t, _)| t.weight() * f)
-            .sum()
-    };
-    den += unmatched(&q.tokens, &used_q, fq) + unmatched(&c.tokens, &used_c, fc);
+    let unmatched_q: f64 = q
+        .iter()
+        .enumerate()
+        .filter(|(i, _)| used_q & (1 << i) == 0)
+        .map(|(_, t)| t.weight() * fq)
+        .sum();
+    let unmatched_c: f64 = c
+        .iter()
+        .enumerate()
+        .filter(|(j, _)| used_c & (1 << j) == 0)
+        .map(|(_, t)| t.weight() * fc)
+        .sum();
+    den += unmatched_q + unmatched_c;
     NameScore {
         score: (num / den).clamp(0.0, 1.0),
         matched,

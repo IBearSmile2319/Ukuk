@@ -232,7 +232,7 @@ pub fn run(req: AnalyzeRequest, today: NaiveDate) -> Result<AnalyzeResponse, Api
         words,
     ));
 
-    findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+    findings.sort_by_key(|f| std::cmp::Reverse(f.severity));
     Ok(AnalyzeResponse {
         engine_version: ENGINE_VERSION,
         sha256,

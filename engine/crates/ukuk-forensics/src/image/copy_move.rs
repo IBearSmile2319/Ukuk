@@ -22,6 +22,11 @@ const MIN_SHIFT: f64 = 24.0;
 /// Mínimo de bloques que comparten desplazamiento para reportar.
 pub const MIN_BLOCKS: usize = 64;
 const MAX_REPORTS: usize = 3;
+/// Si la zona de origen cubre más que esta fracción de la imagen, es estructura
+/// repetida del documento (filas de una tabla), no un parche clonado.
+const MAX_SOURCE_AREA: f64 = 0.15;
+/// Fracción de píxeles claros a partir de la cual la imagen se trata como documento.
+const DOC_LIGHT_RATIO: f64 = 0.6;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct CopyMoveMatch {
@@ -30,6 +35,12 @@ pub struct CopyMoveMatch {
     pub target: (u32, u32, u32, u32),
     pub shift: (i32, i32),
     pub blocks: usize,
+    /// Desplazamiento casi horizontal o vertical sobre un documento con fondo
+    /// claro: es lo que produce texto repetido en filas o columnas (ambiguo).
+    pub repeated_layout: bool,
+    /// Imagen de documento (fondo claro). Allí los glifos repetidos son normales,
+    /// así que un clonado de texto nunca es concluyente por sí solo.
+    pub document: bool,
 }
 
 struct Integral {
@@ -89,6 +100,8 @@ pub fn detect(gray: &GrayImage) -> Vec<CopyMoveMatch> {
     if w < BLOCK * 4 || h < BLOCK * 4 {
         return Vec::new();
     }
+    let light = g.pixels().filter(|p| p.0[0] >= 200).count() as f64;
+    let doc_like = light / f64::from(w * h) >= DOC_LIGHT_RATIO;
     let it = Integral::new(g);
     let n_px = f64::from(BLOCK * BLOCK);
     let mut keyed: Vec<(u64, u32)> = Vec::new();
@@ -154,6 +167,9 @@ pub fn detect(gray: &GrayImage) -> Vec<CopyMoveMatch> {
         }
         let src_pts = srcs.iter().map(|p| (p % w, p / w));
         let (sx, sy, sw, sh) = bbox(src_pts);
+        if f64::from(sw) * f64::from(sh) > MAX_SOURCE_AREA * f64::from(w) * f64::from(h) {
+            continue;
+        }
         let f = factor;
         out.push(CopyMoveMatch {
             source: (sx * f, sy * f, sw * f, sh * f),
@@ -165,6 +181,8 @@ pub fn detect(gray: &GrayImage) -> Vec<CopyMoveMatch> {
             ),
             shift: (dx * f as i32, dy * f as i32),
             blocks: srcs.len(),
+            repeated_layout: doc_like && dx.abs().min(dy.abs()) <= 2 * BLOCK as i32,
+            document: doc_like,
         });
         if out.len() >= MAX_REPORTS {
             break;
@@ -181,18 +199,39 @@ pub fn finding(m: &CopyMoveMatch, orientation: Orientation, width: u32, height: 
         )
     };
     let confidence = (0.55 + (m.blocks as f64 / MIN_BLOCKS as f64).ln() * 0.1).min(0.85);
+    let (severity, confidence, message) = if m.repeated_layout {
+        (
+            Severity::Low,
+            confidence.min(0.3),
+            "Hay contenido idéntico alineado en la misma fila o columna; puede ser texto repetido legítimo o un clonado. Revisar.",
+        )
+    } else if m.document {
+        (
+            Severity::Medium,
+            confidence.min(0.5),
+            "Una zona del documento coincide exactamente con otra; puede ser un clonado de texto o cifras. Revisar.",
+        )
+    } else {
+        (
+            Severity::High,
+            confidence,
+            "Una zona de la imagen parece copiada de otra parte de la misma imagen (clonado).",
+        )
+    };
     Finding::new(
         "copy_move.duplicated_region",
         Layer::Forensics,
-        Severity::High,
+        severity,
         confidence,
-        "Una zona de la imagen parece copiada de otra parte del mismo documento (clonado).",
+        message,
     )
     .with_region(to_region(m.target))
     .with_evidence(json!({
         "source_region": to_region(m.source),
         "shift_px": [m.shift.0, m.shift.1],
         "matching_blocks": m.blocks,
+        "repeated_layout": m.repeated_layout,
+        "document": m.document,
     }))
 }
 
@@ -226,6 +265,43 @@ mod tests {
         let m = detect(&g);
         assert!(!m.is_empty());
         assert_eq!(m[0].shift, (240, 160));
+    }
+
+    /// Documento con filas de tabla que repiten el mismo texto: no debe ser "alto".
+    fn table_document(rows: u32) -> GrayImage {
+        let row = noise_gray(300, 16, 11);
+        let mut g = GrayImage::from_pixel(600, 800, ::image::Luma([255]));
+        for i in 0..rows {
+            overlay(&mut g, &row, 60, i64::from(100 + i * 48));
+        }
+        g
+    }
+
+    #[test]
+    fn repeated_table_rows_are_not_high() {
+        // Dos filas iguales: se reporta, pero como ambiguo (bajo).
+        let m = detect(&table_document(2));
+        assert!(!m.is_empty());
+        for m in &m {
+            assert!(m.repeated_layout, "{m:?}");
+            let f = finding(m, Orientation::NoTransforms, 600, 800);
+            assert_eq!(f.severity, Severity::Low);
+        }
+        // Una tabla entera que se repite es estructura del documento: no se reporta.
+        assert!(detect(&table_document(12)).is_empty());
+    }
+
+    #[test]
+    fn diagonal_clone_on_document_is_medium() {
+        let mut g = GrayImage::from_pixel(600, 800, ::image::Luma([255]));
+        let patch = noise_gray(48, 40, 3);
+        overlay(&mut g, &patch, 80, 120);
+        overlay(&mut g, &patch, 400, 560);
+        let m = detect(&g);
+        assert_eq!(m.len(), 1, "{m:?}");
+        assert!(!m[0].repeated_layout && m[0].document);
+        let f = finding(&m[0], Orientation::NoTransforms, 600, 800);
+        assert_eq!(f.severity, Severity::Medium);
     }
 
     #[test]

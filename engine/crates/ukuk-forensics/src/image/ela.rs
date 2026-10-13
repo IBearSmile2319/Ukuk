@@ -327,7 +327,7 @@ mod tests {
                 let w = 6 + rng.next() % 30;
                 for yy in y..y + 14 {
                     for xx in x..(x + w).min(600) {
-                        if (xx + yy + rng.next()) % 3 != 0 {
+                        if !(xx + yy + rng.next()).is_multiple_of(3) {
                             img.put_pixel(xx, yy, ::image::Rgb([30, 30, 40]));
                         }
                     }

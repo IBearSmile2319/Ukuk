@@ -206,7 +206,7 @@ pub fn dict_at(data: &[u8], start: usize) -> Option<(usize, usize)> {
 }
 
 /// Diccionario de un objeto indirecto `N G obj << ... >>` en los bytes crudos.
-pub fn object_dict<'a>(data: &'a [u8], num: u32, gen_: u32) -> Option<&'a [u8]> {
+pub fn object_dict(data: &[u8], num: u32, gen_: u32) -> Option<&[u8]> {
     let header = format!("{num} {gen_} obj");
     let mut pos = 0;
     let mut last = None;

@@ -1,5 +1,6 @@
 //! Índice invertido por clave fonética y búsqueda (individual y por lotes).
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -7,9 +8,9 @@ use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use crate::model::{Category, Entry, EntryKind, ListMeta};
-use crate::normalize::{PreparedName, prepare};
+use crate::normalize::{NameToken, PreparedName, prepare};
 use crate::parsers::country_code;
-use crate::score::name_similarity;
+use crate::score::{NameScore, score_tokens, token_similarity};
 
 pub const DEFAULT_THRESHOLD: f64 = 0.85;
 pub const DEFAULT_LIMIT: usize = 10;
@@ -17,19 +18,26 @@ const BIRTH_MATCH_BONUS: f64 = 0.03;
 const BIRTH_MISMATCH_PENALTY: f64 = 0.15;
 const KIND_MISMATCH_PENALTY: f64 = 0.05;
 
-/// Nombre (principal o alias) indexado.
+/// Nombre (principal o alias) indexado; sus tokens apuntan al vocabulario.
 struct IndexedName {
     entry: u32,
     original: String,
-    prepared: PreparedName,
+    tokens: Vec<u32>,
 }
 
-/// Lista cargada con su índice invertido.
+/// Lista cargada con su índice invertido por clave fonética.
 pub struct IndexedList {
     pub meta: ListMeta,
     entries: Vec<Entry>,
     names: Vec<IndexedName>,
+    /// Tokens distintos de toda la lista (los apellidos se repiten mucho).
+    vocab: Vec<NameToken>,
     postings: HashMap<String, Vec<u32>>,
+}
+
+thread_local! {
+    /// Contadores densos reutilizables para la selección de candidatos.
+    static COUNTS: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
 }
 
 impl std::fmt::Debug for IndexedList {
@@ -37,6 +45,7 @@ impl std::fmt::Debug for IndexedList {
         f.debug_struct("IndexedList")
             .field("meta", &self.meta)
             .field("names", &self.names.len())
+            .field("vocab", &self.vocab.len())
             .field("keys", &self.postings.len())
             .finish()
     }
@@ -44,32 +53,49 @@ impl std::fmt::Debug for IndexedList {
 
 impl IndexedList {
     pub fn build(meta: ListMeta, entries: Vec<Entry>) -> Self {
-        let names: Vec<IndexedName> = entries
+        let prepared: Vec<(u32, String, PreparedName)> = entries
             .par_iter()
             .enumerate()
             .flat_map_iter(|(i, e)| {
                 std::iter::once(&e.name)
                     .chain(e.aliases.iter())
-                    .map(move |n| IndexedName {
-                        entry: i as u32,
-                        original: n.clone(),
-                        prepared: prepare(n),
-                    })
+                    .map(move |n| (i as u32, n.clone(), prepare(n)))
             })
             .collect();
+        let mut vocab: Vec<NameToken> = Vec::new();
+        let mut vocab_ids: HashMap<(String, Option<String>), u32> = HashMap::new();
         let mut postings: HashMap<String, Vec<u32>> = HashMap::new();
-        for (idx, n) in names.iter().enumerate() {
-            for key in blocking_keys(&n.prepared) {
+        let mut names = Vec::with_capacity(prepared.len());
+        for (idx, (entry, original, p)) in prepared.into_iter().enumerate() {
+            for key in blocking_keys(&p) {
                 let list = postings.entry(key).or_default();
                 if list.last() != Some(&(idx as u32)) {
                     list.push(idx as u32);
                 }
             }
+            let tokens = p
+                .tokens
+                .into_iter()
+                .map(|t| {
+                    *vocab_ids
+                        .entry((t.text.clone(), t.compound.clone()))
+                        .or_insert_with(|| {
+                            vocab.push(t);
+                            (vocab.len() - 1) as u32
+                        })
+                })
+                .collect();
+            names.push(IndexedName {
+                entry,
+                original,
+                tokens,
+            });
         }
         Self {
             meta,
             entries,
             names,
+            vocab,
             postings,
         }
     }
@@ -84,21 +110,24 @@ impl IndexedList {
         let keys = blocking_keys(q);
         let scoring_tokens = q.tokens.iter().filter(|t| !t.initial).count().max(1);
         let min_shared = scoring_tokens.div_ceil(2).min(keys.len().max(1)) as u32;
-        let mut counts: HashMap<u32, u32> = HashMap::new();
-        for k in &keys {
-            if let Some(list) = self.postings.get(k) {
-                for &idx in list {
-                    *counts.entry(idx).or_default() += 1;
+        COUNTS.with_borrow_mut(|counts| {
+            counts.clear();
+            counts.resize(self.names.len(), 0);
+            let mut out = Vec::new();
+            for k in &keys {
+                if let Some(list) = self.postings.get(k) {
+                    for &idx in list {
+                        let c = &mut counts[idx as usize];
+                        *c = c.saturating_add(1);
+                        if u32::from(*c) == min_shared {
+                            out.push(idx);
+                        }
+                    }
                 }
             }
-        }
-        let mut out: Vec<u32> = counts
-            .into_iter()
-            .filter(|(_, c)| *c >= min_shared)
-            .map(|(i, _)| i)
-            .collect();
-        out.sort_unstable();
-        out
+            out.sort_unstable();
+            out
+        })
     }
 }
 
@@ -206,11 +235,24 @@ pub fn screen(lists: &[Arc<IndexedList>], query: &ScreenQuery) -> Vec<ScreenMatc
         {
             continue;
         }
-        // Mejor variante (nombre o alias) por entrada.
-        let mut best: HashMap<u32, (f64, u32, crate::score::NameScore)> = HashMap::new();
+        // Mejor variante (nombre o alias) por entrada; similitudes por token cacheadas.
+        let mut best: HashMap<u32, (f64, u32, NameScore)> = HashMap::new();
+        let mut cache: HashMap<u32, Vec<(f64, f64)>> = HashMap::new();
         for idx in list.candidates(&prepared) {
             let n = &list.names[idx as usize];
-            let s = name_similarity(&prepared, &n.prepared);
+            let ctoks: Vec<&NameToken> =
+                n.tokens.iter().map(|t| &list.vocab[*t as usize]).collect();
+            for &t in &n.tokens {
+                cache.entry(t).or_insert_with(|| {
+                    let ct = &list.vocab[t as usize];
+                    prepared
+                        .tokens
+                        .iter()
+                        .map(|q| token_similarity(q, ct))
+                        .collect()
+                });
+            }
+            let s = score_tokens(&prepared.tokens, &ctoks, |i, j| cache[&n.tokens[j]][i]);
             let slot = best.entry(n.entry).or_insert((-1.0, idx, s));
             if s.score > slot.0 {
                 *slot = (s.score, idx, s);
