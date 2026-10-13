@@ -1,5 +1,5 @@
 import { Finding } from '../engine/engine.types';
-import { NO_TEMPLATE_NOTE, scoreDocument } from './scoring';
+import { NO_TEMPLATE_NOTE, readabilityFinding, scoreDocument } from './scoring';
 
 const f = (code: string, severity: Finding['severity'], confidence = 1) => ({ code, severity, confidence });
 
@@ -49,5 +49,21 @@ describe('scoreDocument', () => {
       templateMatched: true,
     });
     expect(bad).toMatchObject({ verdict: 'rechazar', retake_required: true });
+  });
+});
+
+describe('readabilityFinding', () => {
+  it('una imagen sin texto legible pide otra foto en vez de aprobar', () => {
+    const f = readabilityFinding('image/jpeg', 'tesseract', 0)!;
+    expect(f.code).toBe('image.unreadable');
+    const s = scoreDocument([f], { templateMatched: false });
+    expect(s.verdict).toBe('revisar');
+    expect(s.retake_required).toBe(true);
+  });
+
+  it('no aplica sin OCR, a PDF ni a imágenes legibles', () => {
+    expect(readabilityFinding('image/jpeg', 'none', 0)).toBeNull();
+    expect(readabilityFinding('application/pdf', 'tesseract', 0)).toBeNull();
+    expect(readabilityFinding('image/png', 'textract', 40)).toBeNull();
   });
 });

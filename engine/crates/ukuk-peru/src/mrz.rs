@@ -365,6 +365,21 @@ fn names_match(printed: &str, mrz: &str, mrz_truncated: bool) -> bool {
     mrz_truncated && !m.is_empty() && p.starts_with(&m)
 }
 
+/// El DNIe peruano lleva en la MRZ solo el primer apellido (PEREZ frente a
+/// PEREZ GARCIA impreso): se acepta si la MRZ coincide con los primeros apellidos
+/// completos, nunca con medio apellido.
+fn surnames_match(printed: &str, mrz: &str, mrz_truncated: bool) -> bool {
+    if names_match(printed, mrz, mrz_truncated) {
+        return true;
+    }
+    let m = text::fold_compact(mrz).replace("NXX", "N");
+    let mut prefix = String::new();
+    text::fold(printed).split(' ').any(|token| {
+        prefix.push_str(token);
+        prefix == m
+    })
+}
+
 fn sex_code(s: &str) -> Option<char> {
     match text::fold(s).chars().next()? {
         'M' | 'H' => Some('M'),
@@ -391,7 +406,7 @@ pub fn cross_check(mrz: &MrzData, fields: &DocumentFields, mrz_raw: Option<&str>
         .is_some_and(|l3| l3.len() == LINE_LEN && !l3.ends_with('<'));
 
     if let (Some(p), Some(m)) = (
-        fields.dni.as_deref().map(str::trim),
+        fields.dni.as_deref().map(|d| crate::dni::split(d).0),
         mrz.dni.as_deref().or(mrz.document_number.as_deref()),
     ) && !p.is_empty()
         && p != m
@@ -400,7 +415,7 @@ pub fn cross_check(mrz: &MrzData, fields: &DocumentFields, mrz_raw: Option<&str>
     }
     if let (Some(p), Some(m)) = (fields.apellidos.as_deref(), mrz.surnames.as_deref())
         && !p.trim().is_empty()
-        && !names_match(p, m, truncated)
+        && !surnames_match(p, m, truncated)
     {
         out.push(mismatch(
             "mrz.surname_mismatch",
@@ -711,6 +726,45 @@ mod tests {
             ..Default::default()
         };
         assert!(cross_check(&a.mrz, &fields, Some(&raw)).is_empty());
+    }
+
+    /// La MRZ del DNI peruano (DNIe y DNI azul) lleva solo el primer apellido; se vio en
+    /// dos DNI reales. Por privacidad la prueba usa datos inventados.
+    #[test]
+    fn dni_mrz_carries_only_first_surname() {
+        let raw = build_td1(
+            "12345678",
+            "001223",
+            'M',
+            "360106",
+            "PEREZ",
+            "JUAN CARLOS",
+            "",
+        );
+        let a = parse_td1(&raw, today());
+        assert!(a.findings.is_empty(), "{:?}", a.findings);
+        let fields = DocumentFields {
+            dni: Some("12345678-1".into()),
+            apellidos: Some("PEREZ GARCIA".into()),
+            nombres: Some("JUAN CARLOS".into()),
+            fecha_nacimiento: Some("2000-12-23".into()),
+            fecha_vencimiento: Some("2036-01-06".into()),
+            sexo: Some("M".into()),
+            ..Default::default()
+        };
+        assert!(cross_check(&a.mrz, &fields, Some(&raw)).is_empty());
+        // Otro primer apellido sí es discrepancia, y medio apellido no basta.
+        for other in ["QUISPE GARCIA", "PERE GARCIA"] {
+            let f = DocumentFields {
+                apellidos: Some(other.into()),
+                ..fields.clone()
+            };
+            let codes: Vec<_> = cross_check(&a.mrz, &f, Some(&raw))
+                .into_iter()
+                .map(|f| f.code)
+                .collect();
+            assert_eq!(codes, vec!["mrz.surname_mismatch"], "{other}");
+        }
     }
 
     #[test]

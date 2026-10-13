@@ -273,6 +273,47 @@ async fn analyze_dni_with_mrz_and_fields() {
     assert!(!c.contains(&"mrz.surname_mismatch".to_string()));
 }
 
+/// Un carnet mezcla tamaños a propósito (CUI grande junto a etiquetas pequeñas): la
+/// revisión de diseño genérica no aplica al DNI, sí a una boleta.
+#[tokio::test]
+async fn layout_check_skips_id_cards() {
+    let mut words = Vec::new();
+    for (li, line) in [
+        ["Apellidos", "Nombres", "Sexo", "PER"],
+        ["Estado", "civil", "SOLTERO", "Fecha"],
+        ["Nro", "tarjeta", "CUI", "12345678-1"],
+    ]
+    .iter()
+    .enumerate()
+    {
+        let base = 0.2 + li as f64 * 0.1;
+        for (i, t) in line.iter().enumerate() {
+            let h = if *t == "12345678-1" { 0.03 } else { 0.0144 };
+            words.push(json!({ "text": t, "confidence": 0.99, "page": 1, "bbox": { "x": 0.1 + i as f64 * 0.2, "y": base - h, "w": 0.1, "h": h } }));
+        }
+    }
+    let layout = |document_type: &str| {
+        let extra = json!({ "document_type": document_type, "ocr_words": words.clone() });
+        async move {
+            let (s, v) = send(
+                &router(),
+                post_json(
+                    "/v1/analyze",
+                    &analyze_body(&jpeg(800, 600), "image/jpeg", extra),
+                ),
+            )
+            .await;
+            assert_eq!(s, StatusCode::OK, "{v}");
+            codes(&v)
+                .into_iter()
+                .filter(|c| c.starts_with("layout."))
+                .count()
+        }
+    };
+    assert!(layout("boleta_venta").await > 0);
+    assert_eq!(layout("dni").await, 0);
+}
+
 #[tokio::test]
 async fn analyze_invoice_pdf() {
     let extra = json!({

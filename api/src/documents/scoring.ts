@@ -19,8 +19,29 @@ export const RETAKE_CODES = new Set([
   'image.cropped',
   'image.occluded',
   'image.too_dark',
+  'image.unreadable',
   'file.heic_unsupported',
 ]);
+
+/** Menos palabras que esto en una imagen con OCR activo = no se pudo leer el documento. */
+export const MIN_READABLE_WORDS = 5;
+
+/**
+ * Sin texto legible no hay nada verificado: el documento no puede salir "aprobar"
+ * por falta de hallazgos. Pasó con la foto de un DNI sostenido en la mano.
+ */
+export function readabilityFinding(mime: string, ocrProvider: string, words: number): Finding | null {
+  if (!mime.startsWith('image/') || ocrProvider === 'none' || words >= MIN_READABLE_WORDS) return null;
+  return {
+    code: 'image.unreadable',
+    layer: 'quality',
+    severity: 'medium',
+    confidence: 0.9,
+    message: `No se pudo leer el texto del documento (el OCR encontró ${words} palabras), así que no hay nada verificado. Tome la foto de frente, más cerca y con el documento ocupando casi toda la imagen.`,
+    region: null,
+    evidence: { ocr_provider: ocrProvider, words },
+  };
+}
 
 export const NO_TEMPLATE_NOTE = 'sin plantilla de referencia, confianza limitada';
 

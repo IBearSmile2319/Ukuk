@@ -20,7 +20,7 @@ import { Level, ListDocumentsQuery, ReviewDto, UploadDocumentDto, normalizeIssue
 import { explainFindings } from './explanation';
 import { AcceptedMime, sniffMime } from './file-type';
 import { OCR_PROVIDER, OcrProvider } from './ocr/ocr.provider';
-import { scoreDocument } from './scoring';
+import { readabilityFinding, scoreDocument } from './scoring';
 import { TemplateRow, TemplatesService, templateLabel } from './templates.service';
 import { EXTERNAL_VALIDATORS, ExternalCheck, ExternalValidator, externalFinding } from './validators/external-validator';
 
@@ -218,6 +218,8 @@ export class DocumentsService {
         });
       }
       await this.stage(tenant, id, 'ocr', { provider: this.ocr.name, words: words.length });
+      const unreadable = findings.some((f) => f.code === 'ocr.failed') ? null : readabilityFinding(mime, this.ocr.name, words.length);
+      if (unreadable) findings.push(unreadable);
 
       if (dto.document_type && issuer) {
         const date = /^\d{4}-\d{2}-\d{2}/.test(provided.fecha_emision ?? '')

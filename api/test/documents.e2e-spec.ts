@@ -7,13 +7,15 @@ const jpeg = () => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), randomB
 
 class FakeOcr {
   readonly name = 'fake';
-  words: any[] = [];
+  words: any[] = readable();
   async extract() {
     return this.words;
   }
 }
 
 const word = (text: string, x: number, y: number) => ({ text, confidence: 0.99, page: 1, bbox: { x, y, w: 0.1, h: 0.02 } });
+/** Un documento legible por defecto: con menos de 5 palabras se pediría otra foto. */
+const readable = () => ['BOLETA', 'DE', 'VENTA', 'TOTAL', '118.00'].map((t, i) => word(t, 0.1 * (i + 1), 0.5));
 
 describe('servicio documental', () => {
   let ctx: TestContext;
@@ -29,7 +31,7 @@ describe('servicio documental', () => {
   afterAll(() => ctx.close());
   afterEach(() => {
     engine.analyzeImpl = undefined;
-    ocr.words = [];
+    ocr.words = readable();
   });
 
   const upload = (key: string, data: Buffer, fields: Record<string, string> = {}, filename = 'foto.jpg') => {
@@ -111,6 +113,14 @@ describe('servicio documental', () => {
     const month = new Date().toISOString().slice(0, 7);
     const usage = await ctx.http().get(`/v1/account/usage?month=${month}`).set('x-api-key', t.key).expect(200);
     expect(usage.body.lines.find((l: any) => l.description === 'forensic').quantity).toBe(1);
+  });
+
+  it('una foto sin texto legible no se aprueba: pide otra foto', async () => {
+    const t = await createTenant(ctx);
+    ocr.words = [];
+    const res = await upload(t.key, jpeg(), { document_type: 'dni' }).expect(201);
+    expect(res.body).toMatchObject({ verdict: 'revisar', retake_required: true });
+    expect(res.body.findings.map((f: any) => f.code)).toContain('image.unreadable');
   });
 
   it('detecta reuso: mismo archivo y misma imagen', async () => {
@@ -238,7 +248,7 @@ describe('servicio documental', () => {
     const list = await ctx.http().get('/v1/documents/templates?issuer=Clínica Sol').set('x-api-key', t.key).expect(200);
     expect(list.body).toHaveLength(2);
 
-    ocr.words = [word('CLINICA', 0.1, 0.05)];
+    ocr.words = [word('CLINICA', 0.1, 0.05), ...readable()];
     const checked = await upload(t.key, jpeg(), {
       document_type: 'boleta_venta',
       issuer: 'clínica sol',
@@ -248,7 +258,7 @@ describe('servicio documental', () => {
     expect(checked.body.confidence_note).toBeNull();
     const call = engine.calls.filter((c) => c.method === 'analyze').pop()!.args[0] as any;
     expect(call.template.anchors).toHaveLength(2);
-    expect(call.ocr_words).toHaveLength(1);
+    expect(call.ocr_words).toHaveLength(6);
 
     const old = await upload(t.key, jpeg(), {
       document_type: 'boleta_venta',

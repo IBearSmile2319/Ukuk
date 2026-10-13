@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 470" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" role="img" aria-label="Hoja de ruta de Ukuk: el software de las cuatro fases existe como prototipo probado; el negocio está en la fase de validación">
+  <rect width="960" height="470" fill="#F4F2EE"/>
+  <text x="24" y="34" font-size="17" font-weight="700" fill="#23201B">Hoja de ruta: el software va adelante, el negocio está en la fase 0</text>
+  <text x="24" y="56" fill="#5C564C">Las 4 fases de la propuesta. Cada fase empieza solo si se cumple la condición de la anterior.</text>
+
+  <!-- Columnas -->
+  <g>
+    <rect x="24" y="76" width="210" height="248" rx="10" fill="#FFFFFF" stroke="#A9232C" stroke-width="2.5"/>
+    <rect x="24" y="76" width="210" height="30" rx="10" fill="#A9232C"/>
+    <rect x="24" y="96" width="210" height="10" fill="#A9232C"/>
+    <text x="38" y="96" font-weight="700" fill="#FFFFFF">0 · Validación</text>
+    <text x="38" y="126" fill="#5C564C" font-size="12">Meses 0 a 2 · AQUÍ ESTAMOS</text>
+    <text x="38" y="154" fill="#6B645A">○ 10 entrevistas</text>
+    <text x="38" y="178" fill="#6B645A">○ Contrato laboral revisado</text>
+    <text x="38" y="202" fill="#6B645A">○ 200 documentos reales</text>
+    <text x="38" y="226" fill="#2E6B45">✓ Demo lista para mostrar</text>
+    <text x="38" y="250" fill="#2E6B45">✓ Guía de venta</text>
+  </g>
+  <g>
+    <rect x="258" y="76" width="210" height="248" rx="10" fill="#FFFFFF" stroke="#E4E0D8" stroke-width="1.5"/>
+    <text x="272" y="96" font-weight="700" fill="#23201B">1 · MVP documental</text>
+    <text x="272" y="126" fill="#5C564C" font-size="12">Meses 2 a 5</text>
+    <text x="272" y="154" fill="#2E6B45">✓ DNI, boletas y facturas</text>
+    <text x="272" y="178" fill="#2E6B45">✓ Forense de imagen y PDF</text>
+    <text x="272" y="202" fill="#2E6B45">✓ Informe con hallazgos</text>
+    <text x="272" y="226" fill="#6B645A">○ SUNAT y RENIEC reales</text>
+    <text x="272" y="250" fill="#6B645A">○ Primer piloto pagado</text>
+  </g>
+  <g>
+    <rect x="492" y="76" width="210" height="248" rx="10" fill="#FFFFFF" stroke="#E4E0D8" stroke-width="1.5"/>
+    <text x="506" y="96" font-weight="700" fill="#23201B">2 · PLAFT y radar</text>
+    <text x="506" y="126" fill="#5C564C" font-size="12">Meses 5 a 8</text>
+    <text x="506" y="154" fill="#2E6B45">✓ Listas OFAC, ONU, PEP</text>
+    <text x="506" y="178" fill="#2E6B45">✓ Casos y auditoría</text>
+    <text x="506" y="202" fill="#2E6B45">✓ Matriz de impacto</text>
+    <text x="506" y="226" fill="#6B645A">○ Base propia de PEP</text>
+    <text x="506" y="250" fill="#6B645A">○ Normas reales (permiso)</text>
+  </g>
+  <g>
+    <rect x="726" y="76" width="210" height="248" rx="10" fill="#FFFFFF" stroke="#E4E0D8" stroke-width="1.5"/>
+    <text x="740" y="96" font-weight="700" fill="#23201B">3 · Siniestros</text>
+    <text x="740" y="126" fill="#5C564C" font-size="12">Meses 8 a 12</text>
+    <text x="740" y="154" fill="#2E6B45">✓ Bot y simulador</text>
+    <text x="740" y="178" fill="#2E6B45">✓ Fotos en vivo con GPS</text>
+    <text x="740" y="202" fill="#2E6B45">✓ Plazos SBS</text>
+    <text x="740" y="226" fill="#6B645A">○ Número de WhatsApp real</text>
+    <text x="740" y="250" fill="#6B645A">○ Primera aseguradora</text>
+  </g>
+
+  <!-- Barras: software vs negocio -->
+  <g font-size="11.5" fill="#5C564C">
+    <text x="38" y="282">Software</text><rect x="100" y="273" width="120" height="10" rx="5" fill="#E4E0D8"/><rect x="100" y="273" width="120" height="10" rx="5" fill="#2E6B45"/>
+    <text x="38" y="304">Negocio</text><rect x="100" y="295" width="120" height="10" rx="5" fill="#E4E0D8"/><rect x="100" y="295" width="24" height="10" rx="5" fill="#A9232C"/>
+    <text x="272" y="282">Software</text><rect x="334" y="273" width="120" height="10" rx="5" fill="#E4E0D8"/><rect x="334" y="273" width="90" height="10" rx="5" fill="#2E6B45"/>
+    <text x="272" y="304">Negocio</text><rect x="334" y="295" width="120" height="10" rx="5" fill="#E4E0D8"/>
+    <text x="506" y="282">Software</text><rect x="568" y="273" width="120" height="10" rx="5" fill="#E4E0D8"/><rect x="568" y="273" width="84" height="10" rx="5" fill="#2E6B45"/>
+    <text x="506" y="304">Negocio</text><rect x="568" y="295" width="120" height="10" rx="5" fill="#E4E0D8"/>
+    <text x="740" y="282">Software</text><rect x="802" y="273" width="120" height="10" rx="5" fill="#E4E0D8"/><rect x="802" y="273" width="84" height="10" rx="5" fill="#2E6B45"/>
+    <text x="740" y="304">Negocio</text><rect x="802" y="295" width="120" height="10" rx="5" fill="#E4E0D8"/>
+  </g>
+
+  <!-- Condiciones para avanzar -->
+  <line x1="24" y1="350" x2="936" y2="350" stroke="#B9B2A6" stroke-width="1.5"/>
+  <g fill="#23201B" font-size="12" text-anchor="middle">
+    <path d="M246 340l10 10l-10 10l-10 -10z" fill="#A9232C"/>
+    <text x="246" y="380">Carta de intención</text><text x="246" y="396" fill="#5C564C">para un piloto pagado</text>
+    <path d="M480 340l10 10l-10 10l-10 -10z" fill="#B9B2A6"/>
+    <text x="480" y="380">El piloto cumple</text><text x="480" y="396" fill="#5C564C">su meta de detección</text>
+    <path d="M714 340l10 10l-10 10l-10 -10z" fill="#B9B2A6"/>
+    <text x="714" y="380">5 clientes pagando</text><text x="714" y="396" fill="#5C564C">algún servicio</text>
+  </g>
+
+  <rect x="24" y="414" width="912" height="36" rx="8" fill="#FFFFFF" stroke="#E4E0D8"/>
+  <text x="480" y="437" text-anchor="middle" fill="#23201B">En paralelo: <tspan fill="#2E6B45">✓ aislamiento por cliente, cifrado y auditoría desde el día 1</tspan> · <tspan fill="#6B645A">○ camino a ISO 27001 o SOC 2</tspan></text>
+</svg>
