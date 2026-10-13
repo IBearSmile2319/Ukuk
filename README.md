@@ -11,14 +11,18 @@ venden por separado o en paquete:
 | 4 | **Siniestros por WhatsApp** | El asegurado reporta por chat, envía fotos con captura en vivo (GPS y hora) y el caso llega verificado al ajustador con el reloj SBS corriendo | `claims` |
 
 La propuesta de negocio completa está en [`docs/propuesta.md`](docs/propuesta.md) y la
-decisión de stack en [`docs/arquitectura.md`](docs/arquitectura.md).
+decisión de stack en [`docs/arquitectura.md`](docs/arquitectura.md). Cómo venderlo:
+[`docs/venta.md`](docs/venta.md). Cómo activar OCR, Claude, WhatsApp, SUNAT y RENIEC:
+[`docs/integraciones.md`](docs/integraciones.md).
 
 ## Estructura
 
 ```
 engine/   Motor Rust (forense de imagen/PDF/XML, reglas peruanas, coincidencia de nombres)
 api/      API NestJS multicliente (los 4 servicios, auditoría, cifrado, uso facturable)
-docs/     Propuesta, arquitectura y contrato HTTP del motor
+web/      Página pública con demo + portal para analistas (React; la API la sirve en /)
+demo/     Datos de demostración ficticios y script que los carga
+docs/     Propuesta, arquitectura, venta, integraciones y contrato HTTP del motor
 ```
 
 - **Rust** para lo pesado y determinista: ELA, copy‑move, dHash, calidad de imagen, MRZ del DNI,
@@ -32,50 +36,24 @@ docs/     Propuesta, arquitectura y contrato HTTP del motor
 
 ## Correr en local
 
-Requisitos: Rust 1.97+, Node 22, PostgreSQL 16 (o Docker).
+Requisitos: Docker, Rust, Node 22. Opcional: `brew install tesseract` (OCR local gratuito).
 
 ```bash
-# 1. Base de datos
-createdb ukuk
-cd api && npm ci
-MIGRATION_DATABASE_URL=postgres://postgres@localhost:5432/ukuk npm run migrate
-
-# 2. Motor
-cd ../engine && cargo run --release -p ukuk-engine      # escucha en :8090
-
-# 3. API
-cd ../api && npm run dev                                 # escucha en :3000
-npm run seed                                             # crea un cliente demo e imprime su llave
+./dev.sh               # PostgreSQL en Docker; motor, API y web en tu máquina
+node demo/seed.mjs     # en otra terminal: cliente de demostración con datos en los 4 servicios
 ```
 
-Con Docker: `docker compose up -d db engine && docker compose run --rm migrate && docker compose up api`.
+Abre http://localhost:5173, entra al portal con la llave que imprime el script y prueba los cuatro
+servicios. Siniestros trae un simulador de WhatsApp, así que no necesitas una cuenta de Meta.
 
-### Probar rápido
-
-```bash
-KEY=uk_live_...   # la que imprimió `npm run seed`
-
-# Servicio 1: subir una boleta
-curl -X POST localhost:3000/v1/documents -H "x-api-key: $KEY" \
-  -F file=@boleta.jpg -F document_type=boleta_venta \
-  -F 'fields={"subtotal":"100.00","igv":"18.00","total":"118.00"}'
-
-# Servicio 3: cargar una lista y revisar a una persona
-curl -X PUT 'localhost:3000/admin/plaft/watchlists/pep_pe?format=ukuk_jsonl&category=pep' \
-  -H 'x-admin-token: dev-admin-token' --data-binary @engine/crates/ukuk-names/tests/fixtures/pep_sample.jsonl
-curl -X POST localhost:3000/v1/plaft/subjects -H "x-api-key: $KEY" -H 'content-type: application/json' \
-  -d '{"relation":"proveedor","kind":"individual","name":"Gumercindo Ccahuana Tello","doc_type":"DNI","doc_number":"10234567","monitor":true}'
-
-# Cuenta: estado de cuenta del mes y verificación de la cadena de auditoría
-curl localhost:3000/v1/account/usage?month=2026-10 -H "x-api-key: $KEY"
-curl localhost:3000/v1/account/audit/verify -H "x-api-key: $KEY"
-```
+Todo en Docker (la API sirve la web en http://localhost:3000):
+`docker compose up -d db engine && docker compose run --rm migrate && docker compose up api`.
 
 ## Pruebas
 
 ```bash
 cd engine && cargo test --workspace && cargo clippy --all-targets -- -D warnings
-cd api && npx tsc --noEmit && npm test && npm run test:e2e   # e2e necesita PostgreSQL local
+cd api && npx tsc --noEmit && npm test && npm run test:e2e   # e2e necesita PostgreSQL (TEST_PG_ADMIN_URL)
 ```
 
 ## Mapa de la API
@@ -88,6 +66,8 @@ cd api && npx tsc --noEmit && npm test && npm run test:e2e   # e2e necesita Post
 | `/v1/regulatory/*`, `/admin/regulatory/*` | Servicio 2: normas, resumen diario, matriz de impacto, procesos, tareas, borrador de comentarios |
 | `/v1/plaft/*`, `/admin/plaft/watchlists/*` | Servicio 3: sujetos, carga masiva CSV, casos y decisiones, re‑screening, reporte |
 | `/webhooks/whatsapp`, `/capture/:token`, `/v1/claims/*` | Servicio 4: webhook firmado, página de captura en vivo, casos, alertas de plazos |
+| `/v1/claims/simulator` | Simulador de WhatsApp para probar y hacer demos sin Meta |
+| `POST /public/leads`, `GET /admin/leads` | Interesados que piden un piloto desde la página pública |
 
 ## Pendiente antes de producción
 
@@ -96,5 +76,4 @@ cd api && npx tsc --noEmit && npm test && npm run test:e2e   # e2e necesita Post
 - Colas durables (SQS) para el webhook de WhatsApp y la revisión masiva PLAFT.
 - Plantillas aprobadas de Meta para mensajes fuera de la ventana de 24 h; días hábiles y feriados
   en los plazos SBS; fuente real de noticias negativas; transcripción de notas de voz.
-- Interfaz web (Next.js) para analistas y oficiales de cumplimiento.
 - Revisar el contrato laboral actual antes de vender a aseguradoras (ver riesgos en la propuesta).

@@ -1,0 +1,7 @@
+name,kind,relation,doc_type,doc_number,birth_date,nationality,monitor
+Teodulfo Anselmo Huamanchumo Saravia,individual,cliente,DNI,40123456,1968-03-14,PE,true
+Gumercindo Ccahuana Tello,individual,proveedor,DNI,10234567,1958-07-21,PE,true
+Rosaura Villavicencio de la Puente,individual,director,DNI,09876543,1966-01-10,PE,true
+María Quispe Mamani,individual,trabajador,DNI,45678900,1990-05-02,PE,true
+Servicios Generales del Sur S.A.C.,entity,proveedor,RUC,20999000224,,PE,true
+Juan Carlos Pérez Gómez,individual,cliente,DNI,43210987,1985-11-23,PE,true

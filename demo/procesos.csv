@@ -1,0 +1,5 @@
+code,name,kind,description,owner_email,topics,keywords
+PR-SIN-01,Gestión de siniestros vehiculares,proceso,"Recepción del aviso de siniestro por canales digitales, evaluación del ajustador, plazo de pronunciamiento y pago al asegurado",siniestros@aseguradora-demo.pe,siniestros|seguros,aviso de siniestro|whatsapp|pronunciamiento|documentación completa
+PO-PLAFT-01,Política de prevención del lavado de activos,politica,"Debida diligencia de clientes, proveedores y trabajadores; revisión de listas y personas expuestas políticamente",cumplimiento@aseguradora-demo.pe,plaft,debida diligencia|proveedores|listas|PEP
+MA-SI-01,Manual de seguridad de la información,manual,"Controles de seguridad, proveedores de servicios en la nube y notificación de incidentes",seguridad@aseguradora-demo.pe,seguridad_informacion|datos_personales,nube|incidentes|proveedores
+PR-REC-01,Atención de reclamos,proceso,"Registro y respuesta de reclamos de usuarios dentro del plazo",reclamos@aseguradora-demo.pe,conducta_mercado,reclamos|plazo de respuesta

@@ -9,12 +9,14 @@ import { ClaimsService } from './claims.service';
 import { ConversationService } from './conversation.service';
 import { CLAIM_MAILER, ClaimDispatcher, LoggerMailer, NoopTranscriber, TRANSCRIBER } from './destination';
 import { CsvPolicyProvider } from './policy-provider';
+import { ClaimsSimulatorController } from './simulator.controller';
 import { WaMessenger } from './wa-messenger.service';
 import { WhatsAppWebhookController } from './webhook.controller';
 import { GraphWhatsAppClient, WHATSAPP_CLIENT } from './whatsapp.client';
 
 @Module({
-  controllers: [ClaimsController, WhatsAppWebhookController, CaptureController, AdminClaimsController],
+  // El simulador va primero: `GET /v1/claims/:id` capturaría `/v1/claims/simulator`.
+  controllers: [ClaimsSimulatorController, ClaimsController, WhatsAppWebhookController, CaptureController, AdminClaimsController],
   providers: [
     ClaimsService,
     ClaimFilesService,

@@ -34,6 +34,12 @@ export const MEDIA_LIMITS: Record<string, number> = {
   document: 100 * 1024 * 1024,
 };
 
+/** Números de prueba (simulador del portal): no llaman a Meta. */
+export const SANDBOX_PREFIX = 'sandbox-';
+/** Archivos que el simulador "envía": se leen de aquí en vez de Graph. */
+// ponytail: en memoria y sin vencimiento; basta para un simulador de un solo proceso.
+export const sandboxMedia = new Map<string, { data: Buffer; mimeType: string }>();
+
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 /** Cliente real de la Cloud API (Graph). */
@@ -44,6 +50,7 @@ export class GraphWhatsAppClient implements WhatsAppClient {
   constructor(@Inject(APP_CONFIG) private readonly config: AppConfig) {}
 
   private async send(from: WaSender, payload: Record<string, unknown>): Promise<{ id: string | null }> {
+    if (from.phoneNumberId.startsWith(SANDBOX_PREFIX)) return { id: null };
     const res = await fetch(`${this.config.whatsapp.graphUrl}/${encodeURIComponent(from.phoneNumberId)}/messages`, {
       method: 'POST',
       headers: { authorization: `Bearer ${from.accessToken}`, 'content-type': 'application/json' },
@@ -96,6 +103,12 @@ export class GraphWhatsAppClient implements WhatsAppClient {
   }
 
   async downloadMedia(from: WaSender, mediaId: string) {
+    if (from.phoneNumberId.startsWith(SANDBOX_PREFIX)) {
+      const media = sandboxMedia.get(mediaId);
+      sandboxMedia.delete(mediaId);
+      if (!media) throw new Error(`Archivo de simulador ${mediaId} no encontrado`);
+      return media;
+    }
     const auth = { authorization: `Bearer ${from.accessToken}` };
     const metaRes = await fetch(`${this.config.whatsapp.graphUrl}/${encodeURIComponent(mediaId)}`, {
       headers: auth,

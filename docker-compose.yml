@@ -23,7 +23,7 @@ services:
     volumes: [enginedata:/data]
 
   migrate:
-    build: ./api
+    build: { context: ., dockerfile: api/Dockerfile }
     command: ["node", "-e", "require('./dist/db/migrate').migrate(process.env.MIGRATION_DATABASE_URL, console.log)"]
     environment:
       MIGRATION_DATABASE_URL: postgres://postgres:postgres@db:5432/ukuk
@@ -31,12 +31,14 @@ services:
       db: { condition: service_healthy }
 
   api:
-    build: ./api
+    build: { context: ., dockerfile: api/Dockerfile }
     environment:
       NODE_ENV: development
       DATABASE_URL: postgres://ukuk_app:ukuk@db:5432/ukuk
       UKUK_ENGINE_URL: http://engine:8090
       UKUK_STORAGE_DIR: /data/blobs
+      UKUK_OCR: tesseract
+      UKUK_PUBLIC_BASE_URL: ${UKUK_PUBLIC_BASE_URL:-http://localhost:3000}
       UKUK_ADMIN_TOKEN: ${UKUK_ADMIN_TOKEN:-dev-admin-token}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports: ["3000:3000"]

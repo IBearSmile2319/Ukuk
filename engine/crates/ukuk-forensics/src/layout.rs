@@ -13,6 +13,20 @@ const MIN_LINE_WORDS: usize = 3;
 /// Solapamiento vertical mínimo (fracción de la menor altura) para unir a una línea.
 const LINE_OVERLAP: f64 = 0.3;
 const MAX_FINDINGS_PER_CODE: usize = 10;
+/// Diferencia de tamaño que se tolera en palabras sin dígitos: una tilde sobre una
+/// mayúscula (CLÍNICA) o una caja de OCR algo holgada ya mueven la medida ~25 %.
+const TEXT_SIZE_TOLERANCE: f64 = 0.3;
+const DIGIT_SIZE_TOLERANCE: f64 = 0.15;
+
+/// Lo que se adultera son montos, fechas y números de documento: una anomalía en una
+/// palabra con dígitos pesa más que en una etiqueta, donde el ruido del OCR domina.
+fn weigh(text: &str, confidence: f64) -> (Severity, f64) {
+    if text.chars().any(|c| c.is_ascii_digit()) {
+        (Severity::Medium, confidence)
+    } else {
+        (Severity::Low, confidence.min(0.4))
+    }
+}
 
 // Proporciones tipográficas aproximadas respecto del cuerpo de la letra.
 const X_HEIGHT: f64 = 0.5;
@@ -38,7 +52,7 @@ fn glyph_profile(text: &str) -> Option<(f64, f64)> {
         if "gjpqy".contains(c) {
             desc = true;
         }
-        if matches!(c, ',' | ';' | '(' | ')' | '/') {
+        if matches!(c, ',' | ';' | '(' | ')') {
             desc = true;
             tall = true;
         }
@@ -158,13 +172,14 @@ pub fn analyze_layout(words: &[OcrWord]) -> Vec<Finding> {
                 let dev = (m.baseline - med_base).abs() / med_size;
                 if dev > BASELINE_TOLERANCE {
                     let w = &words[m.idx];
+                    let (severity, confidence) = weigh(&w.text, (0.45 + dev * 0.3).min(0.75));
                     misaligned.push((
                         dev,
                         Finding::new(
                             "layout.misaligned_text",
                             Layer::Forensics,
-                            Severity::Medium,
-                            (0.45 + dev * 0.3).min(0.75),
+                            severity,
+                            confidence,
                             format!("La palabra «{}» está desalineada respecto de su línea; podría haber sido insertada.", w.text),
                         )
                         .with_region(Region::from_bbox(page, &m.bbox))
@@ -194,15 +209,21 @@ pub fn analyze_layout(words: &[OcrWord]) -> Vec<Finding> {
         .max(MAD_FLOOR);
         for (idx, page, bbox, r) in &relative {
             let z = 0.6745 * (r - med) / mad;
-            if z.abs() > ROBUST_Z && (r - med).abs() > 0.15 {
-                let w = &words[*idx];
+            let w = &words[*idx];
+            let tolerance = if w.text.chars().any(|c| c.is_ascii_digit()) {
+                DIGIT_SIZE_TOLERANCE
+            } else {
+                TEXT_SIZE_TOLERANCE
+            };
+            if z.abs() > ROBUST_Z && (r - med).abs() > tolerance {
+                let (severity, confidence) = weigh(&w.text, (0.4 + z.abs() * 0.03).min(0.7));
                 sized.push((
                     z.abs(),
                     Finding::new(
                         "layout.font_size_outlier",
                         Layer::Forensics,
-                        Severity::Medium,
-                        (0.4 + z.abs() * 0.03).min(0.7),
+                        severity,
+                        confidence,
                         format!("La palabra «{}» tiene un tamaño de letra distinto al resto de su línea.", w.text),
                     )
                     .with_region(Region::from_bbox(*page, bbox))
@@ -301,6 +322,40 @@ pub(crate) mod tests {
         let f = analyze_layout(&words);
         assert!(codes(&f).contains(&"layout.font_size_outlier"), "{f:?}");
         assert!(!codes(&f).contains(&"layout.misaligned_text"));
+        assert_eq!(f[0].severity, Severity::Medium);
+    }
+
+    #[test]
+    fn accented_capitals_and_dates_are_not_outliers() {
+        let mut words = receipt();
+        // CLÍNICA: la tilde agranda la caja ~26 % aunque el OCR devuelva "CLINICA".
+        let i = words.iter().position(|w| w.text == "CLINICA").unwrap();
+        let b = words[i].bbox;
+        words[i].bbox = BBox {
+            y: b.bottom() - b.h * 1.26,
+            h: b.h * 1.26,
+            ..b
+        };
+        assert!(analyze_layout(&words).is_empty());
+    }
+
+    #[test]
+    fn label_noise_is_low_severity() {
+        let mut words = receipt();
+        let i = words.iter().position(|w| w.text == "Consulta").unwrap();
+        let b = words[i].bbox;
+        words[i].bbox = BBox {
+            y: b.bottom() - b.h * 1.8,
+            h: b.h * 1.8,
+            ..b
+        };
+        let f = analyze_layout(&words);
+        assert!(!f.is_empty());
+        assert!(
+            f.iter()
+                .all(|f| f.severity == Severity::Low && f.confidence <= 0.4),
+            "{f:?}"
+        );
     }
 
     #[test]

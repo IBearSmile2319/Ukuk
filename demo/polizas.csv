@@ -1,0 +1,5 @@
+policy_number,holder_dni,holder_name,plate,product,line,start,end,notice_days,status
+VEH-2026-0101,45678912,Rosa Elena Quispe Mamani,ABC-123,Auto Total,daños,2026-01-01,2026-12-31,,vigente
+VEH-2026-0102,41234567,Carlos Alberto Ramos Díaz,BCD-456,Auto Total,daños,2026-02-15,2027-02-14,5,vigente
+CEL-2026-0201,47896541,Lucía Fernanda Torres Vega,,Protección Celular,daños,2026-03-01,2027-02-28,,vigente
+SAL-2026-0301,40987654,Jorge Luis Paredes Huamán,,Salud Esencial,personas,2026-01-01,2026-12-31,,vigente

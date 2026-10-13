@@ -6,12 +6,15 @@ import {
   externalFinding,
   fetchJson,
   notConfigured,
+  secretOf,
 } from './external-validator';
 
 /** Credenciales del cliente para la API de consulta de comprobantes (tenant.settings.sunat). */
 export interface SunatSettings {
   client_id: string;
-  client_secret: string;
+  client_secret?: string;
+  /** Variable de entorno con el client_secret (recomendado). */
+  client_secret_ref?: string;
   /** RUC con el que se consulta; por defecto, el del cliente. */
   ruc?: string;
   token_url?: string;
@@ -76,7 +79,8 @@ export class SunatCpeValidator implements ExternalValidator {
     const request = query ? { ...query } : { motivo: 'faltan RUC emisor, serie-número o fecha de emisión' };
     const s = ctx.tenant.settings.sunat as SunatSettings | undefined;
     const ruc = s?.ruc ?? ctx.tenant.ruc;
-    if (!s?.client_id || !s?.client_secret || !ruc) {
+    const clientSecret = secretOf(s?.client_secret, s?.client_secret_ref);
+    if (!s?.client_id || !clientSecret || !ruc) {
       return notConfigured(
         this.source,
         'external.sunat_not_configured',
@@ -105,7 +109,7 @@ export class SunatCpeValidator implements ExternalValidator {
         grant_type: 'client_credentials',
         scope: 'https://api.sunat.gob.pe/v1/contribuyente/contribuyentes',
         client_id: s.client_id,
-        client_secret: s.client_secret,
+        client_secret: clientSecret,
       }),
     });
     if (token.status !== 200 || !token.body?.access_token) {

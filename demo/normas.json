@@ -1,0 +1,34 @@
+{
+  "norms": [
+    {
+      "source": "sbs",
+      "external_id": "demo-sbs-siniestros-digitales",
+      "issuer": "Superintendencia de Banca, Seguros y AFP",
+      "number": "Res. SBS N° 0001-2026 (EJEMPLO)",
+      "title": "Aprueban el Reglamento de Gestión de Siniestros por canales digitales (norma de ejemplo para la demo)",
+      "published_at": "2026-10-10",
+      "url": "https://www.sbs.gob.pe/",
+      "text": "Lima, 10 de octubre de 2026\nSE RESUELVE:\nArtículo 1.- Objeto\nAprobar el Reglamento de Gestión de Siniestros aplicable a las empresas de seguros.\nArtículo 2°.- Aviso de siniestro por medios digitales\nLas empresas de seguros deben habilitar canales digitales, incluido WhatsApp, para el aviso de siniestro y la presentación de documentos del asegurado.\nArtículo 3.- Plazo de pronunciamiento\nLas empresas deberán pronunciarse sobre el siniestro dentro de los 30 días de recibida la documentación completa, bajo responsabilidad.\nDISPOSICIONES COMPLEMENTARIAS FINALES\nPrimera.- Vigencia\nLa presente resolución entra en vigencia a partir del 1 de enero de 2027."
+    },
+    {
+      "source": "sbs",
+      "external_id": "demo-sbs-proyecto-proveedores",
+      "issuer": "Superintendencia de Banca, Seguros y AFP",
+      "number": "Proyecto de resolución (EJEMPLO)",
+      "title": "Proyecto que modifica el Reglamento de debida diligencia de proveedores en prevención del lavado de activos (norma de ejemplo para la demo)",
+      "published_at": "2026-10-08",
+      "status": "proyecto",
+      "comments_deadline": "2026-11-15",
+      "text": "Artículo 1.- Debida diligencia de proveedores\nLos sujetos obligados deben actualizar la debida diligencia de sus proveedores al menos cada dos años y revisar las listas de sanciones y de personas expuestas políticamente.\nArtículo 2.- Registro\nEl oficial de cumplimiento mantiene un registro de las revisiones realizadas."
+    },
+    {
+      "source": "el_peruano",
+      "external_id": "demo-ep-particular",
+      "issuer": "Superintendencia de Banca, Seguros y AFP",
+      "number": "Res. SBS N° 0002-2026 (EJEMPLO)",
+      "title": "Autorizan a Banco Ejemplo S.A. el traslado de una agencia ubicada en el departamento de Lima",
+      "published_at": "2026-10-11",
+      "text": "Artículo Único.- Autorizar a Banco Ejemplo S.A. el traslado de su agencia."
+    }
+  ]
+}

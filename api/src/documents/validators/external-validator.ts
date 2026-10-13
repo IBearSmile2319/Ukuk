@@ -67,3 +67,11 @@ export const normalizeName = (s: string) =>
     .replace(/[^A-ZÑ ]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
+
+/**
+ * Secreto de un cliente: preferir `<campo>_ref`, el nombre de una variable de entorno
+ * (en AWS, un secreto inyectado), para no guardar la clave en `tenants.settings`.
+ */
+export function secretOf(value: string | undefined, ref: string | undefined): string | undefined {
+  return (ref ? process.env[ref] : undefined) || value || undefined;
+}

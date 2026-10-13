@@ -7,6 +7,7 @@ import {
   fetchJson,
   normalizeName,
   notConfigured,
+  secretOf,
 } from './external-validator';
 
 /**
@@ -18,7 +19,9 @@ export interface ReniecSettings {
   endpoint?: string;
   dni_usuario: string;
   ruc_usuario: string;
-  password: string;
+  password?: string;
+  /** Variable de entorno con la clave (recomendado). */
+  password_ref?: string;
 }
 
 const PIDE_URL = 'https://ws5.pide.gob.pe/Rest/Reniec/Consultar';
@@ -35,7 +38,8 @@ export class ReniecValidator implements ExternalValidator {
     const dni = ctx.fields.dni ?? '';
     const request = { dni };
     const s = ctx.tenant.settings.reniec as ReniecSettings | undefined;
-    if (!s?.dni_usuario || !s?.ruc_usuario || !s?.password) {
+    const password = secretOf(s?.password, s?.password_ref);
+    if (!s?.dni_usuario || !s?.ruc_usuario || !password) {
       return notConfigured(
         this.source,
         'external.reniec_not_configured',
@@ -58,7 +62,7 @@ export class ReniecValidator implements ExternalValidator {
       nuDniConsulta: dni,
       nuDniUsuario: s.dni_usuario,
       nuRucUsuario: s.ruc_usuario,
-      password: s.password,
+      password,
       out: 'json',
     });
     const res = await fetchJson(`${s.endpoint ?? PIDE_URL}?${q}`);
