@@ -206,8 +206,18 @@ mod tests {
 
     #[test]
     fn bbox_union() {
-        let a = BBox { x: 0.1, y: 0.1, w: 0.1, h: 0.1 };
-        let b = BBox { x: 0.3, y: 0.0, w: 0.1, h: 0.1 };
+        let a = BBox {
+            x: 0.1,
+            y: 0.1,
+            w: 0.1,
+            h: 0.1,
+        };
+        let b = BBox {
+            x: 0.3,
+            y: 0.0,
+            w: 0.1,
+            h: 0.1,
+        };
         let u = a.union(&b);
         assert!((u.w - 0.3).abs() < 1e-9 && (u.h - 0.2).abs() < 1e-9);
     }

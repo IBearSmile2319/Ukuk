@@ -73,7 +73,9 @@ pub fn decode(bytes: &[u8]) -> Result<(DynamicImage, Orientation, ImageFormat), 
     limits.max_image_height = Some(20_000);
     limits.max_alloc = Some(1 << 30);
     reader.limits(limits);
-    let mut decoder = reader.into_decoder().map_err(|e| ImageError(e.to_string()))?;
+    let mut decoder = reader
+        .into_decoder()
+        .map_err(|e| ImageError(e.to_string()))?;
     let orientation = decoder.orientation().unwrap_or(Orientation::NoTransforms);
     let img = DynamicImage::from_decoder(decoder).map_err(|e| ImageError(e.to_string()))?;
     Ok((img, orientation, format))
@@ -101,7 +103,10 @@ pub fn orient_region(r: Region, o: Orientation) -> Region {
 fn swaps_axes(o: Orientation) -> bool {
     matches!(
         o,
-        Orientation::Rotate90 | Orientation::Rotate270 | Orientation::Rotate90FlipH | Orientation::Rotate270FlipH
+        Orientation::Rotate90
+            | Orientation::Rotate270
+            | Orientation::Rotate90FlipH
+            | Orientation::Rotate270FlipH
     )
 }
 
@@ -116,7 +121,11 @@ fn downscale(img: &DynamicImage, max_side: u32) -> DynamicImage {
 pub fn analyze_image(bytes: &[u8]) -> Result<ImageAnalysis, ImageError> {
     let (img, orientation, format) = decode(bytes)?;
     let (raw_w, raw_h) = (img.width(), img.height());
-    let (width, height) = if swaps_axes(orientation) { (raw_h, raw_w) } else { (raw_w, raw_h) };
+    let (width, height) = if swaps_axes(orientation) {
+        (raw_h, raw_w)
+    } else {
+        (raw_w, raw_h)
+    };
     let mut findings = Vec::new();
 
     let small = downscale(&img, QUALITY_MAX_SIDE);
@@ -223,7 +232,9 @@ pub(crate) mod testutil {
 
     pub fn encode_jpeg(img: &RgbImage, q: u8) -> Vec<u8> {
         let mut out = Vec::new();
-        JpegEncoder::new_with_quality(&mut out, q).encode_image(img).unwrap();
+        JpegEncoder::new_with_quality(&mut out, q)
+            .encode_image(img)
+            .unwrap();
         out
     }
 

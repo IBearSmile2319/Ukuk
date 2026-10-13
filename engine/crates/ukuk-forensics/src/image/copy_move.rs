@@ -4,9 +4,9 @@
 
 use std::collections::HashMap;
 
+use ::image::GrayImage;
 use ::image::imageops::FilterType;
 use ::image::metadata::Orientation;
-use ::image::GrayImage;
 use serde_json::json;
 use ukuk_core::{Finding, Layer, Region, Severity};
 
@@ -58,7 +58,9 @@ impl Integral {
     }
 
     fn rect(t: &[u64], stride: usize, x: usize, y: usize, s: usize) -> u64 {
-        t[(y + s) * stride + x + s] + t[y * stride + x] - t[y * stride + x + s] - t[(y + s) * stride + x]
+        t[(y + s) * stride + x + s] + t[y * stride + x]
+            - t[y * stride + x + s]
+            - t[(y + s) * stride + x]
     }
 }
 
@@ -135,8 +137,10 @@ pub fn detect(gray: &GrayImage) -> Vec<CopyMoveMatch> {
         }
     }
 
-    let mut shifts: Vec<((i32, i32), Vec<u32>)> =
-        by_shift.into_iter().filter(|(_, v)| v.len() >= MIN_BLOCKS).collect();
+    let mut shifts: Vec<((i32, i32), Vec<u32>)> = by_shift
+        .into_iter()
+        .filter(|(_, v)| v.len() >= MIN_BLOCKS)
+        .collect();
     shifts.sort_by(|a, b| b.1.len().cmp(&a.1.len()).then(a.0.cmp(&b.0)));
 
     let mut out: Vec<CopyMoveMatch> = Vec::new();
@@ -171,7 +175,10 @@ pub fn detect(gray: &GrayImage) -> Vec<CopyMoveMatch> {
 
 pub fn finding(m: &CopyMoveMatch, orientation: Orientation, width: u32, height: u32) -> Finding {
     let to_region = |(x, y, w, h): (u32, u32, u32, u32)| {
-        super::orient_region(Region::from_pixels(1, x, y, w, h, width, height), orientation)
+        super::orient_region(
+            Region::from_pixels(1, x, y, w, h, width, height),
+            orientation,
+        )
     };
     let confidence = (0.55 + (m.blocks as f64 / MIN_BLOCKS as f64).ln() * 0.1).min(0.85);
     Finding::new(
@@ -227,7 +234,9 @@ mod tests {
         let g = ::image::DynamicImage::ImageRgb8(textured_rgb(400, 300, 7)).to_luma8();
         assert!(detect(&g).is_empty());
         // Texturas periódicas (rayas) no se reportan.
-        let stripes = GrayImage::from_fn(400, 300, |x, _| ::image::Luma([if (x / 4) % 2 == 0 { 0 } else { 255 }]));
+        let stripes = GrayImage::from_fn(400, 300, |x, _| {
+            ::image::Luma([if (x / 4) % 2 == 0 { 0 } else { 255 }])
+        });
         assert!(detect(&stripes).is_empty());
         assert!(detect(&GrayImage::new(10, 10)).is_empty());
     }

@@ -42,7 +42,11 @@ pub fn key(token: &str) -> String {
                 out.push(b'Y');
                 i += 1;
             }
-            b'Y' => out.push(if next.is_some_and(is_vowel) { b'Y' } else { b'I' }),
+            b'Y' => out.push(if next.is_some_and(is_vowel) {
+                b'Y'
+            } else {
+                b'I'
+            }),
             b'P' if next == Some(b'H') => {
                 out.push(b'F');
                 i += 1;

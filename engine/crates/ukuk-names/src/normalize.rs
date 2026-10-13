@@ -9,8 +9,8 @@ use crate::phonetic;
 pub const PARTICLES: &[&str] = &["DE", "DEL", "LA", "LAS", "LOS", "Y", "VDA", "VIUDA", "E"];
 /// Formas societarias que no identifican a la entidad (se comparan ya unidas: "S A C" → "SAC").
 const LEGAL_SUFFIXES: &[&str] = &[
-    "SAC", "SA", "SAA", "SRL", "EIRL", "SCRL", "SAS", "SL", "LTDA", "LTD", "INC", "LLC", "CORP", "CO",
-    "GMBH", "PLC",
+    "SAC", "SA", "SAA", "SRL", "EIRL", "SCRL", "SAS", "SL", "LTDA", "LTD", "INC", "LLC", "CORP",
+    "CO", "GMBH", "PLC",
 ];
 /// Partículas que forman apellidos compuestos ("DE LA CRUZ" ≈ "DELACRUZ").
 const JOINABLE: &[&str] = &["DE", "DEL", "LA", "LAS", "LOS"];
@@ -68,7 +68,11 @@ impl NameToken {
     }
 
     pub fn weight(&self) -> f64 {
-        if self.initial { 1.0 } else { self.text.chars().count() as f64 }
+        if self.initial {
+            1.0
+        } else {
+            self.text.chars().count() as f64
+        }
     }
 }
 
@@ -136,7 +140,10 @@ mod tests {
 
     #[test]
     fn comma_form() {
-        assert_eq!(prepare("PEREZ DE LA CRUZ, Juan").normalized, "JUAN PEREZ DE LA CRUZ");
+        assert_eq!(
+            prepare("PEREZ DE LA CRUZ, Juan").normalized,
+            "JUAN PEREZ DE LA CRUZ"
+        );
         assert_eq!(uncomma("A, B, C"), "A, B, C");
     }
 

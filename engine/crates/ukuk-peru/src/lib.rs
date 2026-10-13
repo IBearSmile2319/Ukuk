@@ -22,7 +22,11 @@ pub fn check_fields(
     today: NaiveDate,
 ) -> Vec<Finding> {
     let mut out = Vec::new();
-    if let Some(ruc) = fields.ruc_emisor.as_deref().filter(|s| !s.trim().is_empty()) {
+    if let Some(ruc) = fields
+        .ruc_emisor
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
         out.extend(ruc::findings(ruc));
     }
     if let Some(dni) = fields.dni.as_deref().filter(|s| !s.trim().is_empty()) {

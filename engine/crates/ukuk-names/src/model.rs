@@ -83,6 +83,4 @@ pub struct ListMeta {
     pub entries: usize,
     pub version: String,
     pub loaded_at: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub format: Option<ListFormat>,
 }

@@ -8,7 +8,11 @@ use ukuk_core::{DocumentFields, DocumentType, Finding, Layer, Severity};
 pub enum ParsedDate {
     Valid(NaiveDate),
     /// Componentes numéricos reconocibles pero fecha inexistente (p. ej. 30 de febrero).
-    Impossible { year: i32, month: u32, day: u32 },
+    Impossible {
+        year: i32,
+        month: u32,
+        day: u32,
+    },
     Unparseable,
 }
 
@@ -18,10 +22,18 @@ pub fn parse(s: &str) -> ParsedDate {
     let s = s.trim();
     let date_part = s.split(['T', ' ']).next().unwrap_or("");
     let parts: Vec<&str> = date_part.split(['-', '/', '.']).collect();
-    if parts.len() != 3 || parts.iter().any(|p| p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit())) {
+    if parts.len() != 3
+        || parts
+            .iter()
+            .any(|p| p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit()))
+    {
         return ParsedDate::Unparseable;
     }
-    let nums: Vec<u32> = match parts.iter().map(|p| p.parse::<u32>()).collect::<Result<_, _>>() {
+    let nums: Vec<u32> = match parts
+        .iter()
+        .map(|p| p.parse::<u32>())
+        .collect::<Result<_, _>>()
+    {
         Ok(v) => v,
         Err(_) => return ParsedDate::Unparseable,
     };
@@ -84,11 +96,23 @@ fn field_date(name: &str, raw: Option<&str>, out: &mut Vec<Finding>) -> Option<N
     }
 }
 
-pub fn check(fields: &DocumentFields, document_type: Option<DocumentType>, today: NaiveDate) -> Vec<Finding> {
+pub fn check(
+    fields: &DocumentFields,
+    document_type: Option<DocumentType>,
+    today: NaiveDate,
+) -> Vec<Finding> {
     let mut out = Vec::new();
     let issue = field_date("fecha_emision", fields.fecha_emision.as_deref(), &mut out);
-    let expiry = field_date("fecha_vencimiento", fields.fecha_vencimiento.as_deref(), &mut out);
-    let birth = field_date("fecha_nacimiento", fields.fecha_nacimiento.as_deref(), &mut out);
+    let expiry = field_date(
+        "fecha_vencimiento",
+        fields.fecha_vencimiento.as_deref(),
+        &mut out,
+    );
+    let birth = field_date(
+        "fecha_nacimiento",
+        fields.fecha_nacimiento.as_deref(),
+        &mut out,
+    );
 
     if let Some(issue) = issue.filter(|d| *d > today) {
         out.push(
@@ -99,7 +123,9 @@ pub fn check(fields: &DocumentFields, document_type: Option<DocumentType>, today
                 0.9,
                 format!("La fecha de emisión ({issue}) es posterior a la fecha actual ({today})."),
             )
-            .with_evidence(json!({ "fecha_emision": issue.to_string(), "today": today.to_string() })),
+            .with_evidence(
+                json!({ "fecha_emision": issue.to_string(), "today": today.to_string() }),
+            ),
         );
     }
     if let Some(birth) = birth.filter(|d| *d > today) {
@@ -111,7 +137,9 @@ pub fn check(fields: &DocumentFields, document_type: Option<DocumentType>, today
                 0.95,
                 format!("La fecha de nacimiento ({birth}) es posterior a la fecha actual."),
             )
-            .with_evidence(json!({ "fecha_nacimiento": birth.to_string(), "today": today.to_string() })),
+            .with_evidence(
+                json!({ "fecha_nacimiento": birth.to_string(), "today": today.to_string() }),
+            ),
         );
     }
     if let (Some(issue), Some(expiry)) = (issue, expiry)
@@ -165,7 +193,9 @@ pub fn check(fields: &DocumentFields, document_type: Option<DocumentType>, today
                 0.9,
                 format!("El documento venció el {expiry}."),
             )
-            .with_evidence(json!({ "fecha_vencimiento": expiry.to_string(), "today": today.to_string() })),
+            .with_evidence(
+                json!({ "fecha_vencimiento": expiry.to_string(), "today": today.to_string() }),
+            ),
         );
     }
     out
@@ -198,7 +228,11 @@ mod tests {
     fn impossible_and_unparseable() {
         assert_eq!(
             parse("2026-02-30"),
-            ParsedDate::Impossible { year: 2026, month: 2, day: 30 }
+            ParsedDate::Impossible {
+                year: 2026,
+                month: 2,
+                day: 30
+            }
         );
         assert!(matches!(parse("31/04/2025"), ParsedDate::Impossible { .. }));
         assert!(matches!(parse("2025-13-01"), ParsedDate::Impossible { .. }));
@@ -237,7 +271,10 @@ mod tests {
             fecha_vencimiento: Some("2024-01-01".into()),
             ..Default::default()
         };
-        assert_eq!(codes(&check(&f, Some(DocumentType::Dni), today())), vec!["dates.document_expired"]);
+        assert_eq!(
+            codes(&check(&f, Some(DocumentType::Dni), today())),
+            vec!["dates.document_expired"]
+        );
         assert!(check(&f, Some(DocumentType::Factura), today()).is_empty());
         let f = DocumentFields {
             fecha_vencimiento: Some("NO CADUCA".into()),
@@ -261,6 +298,9 @@ mod tests {
             fecha_nacimiento: Some("1890-01-01".into()),
             ..Default::default()
         };
-        assert_eq!(codes(&check(&f, None, today())), vec!["dates.implausible_birth"]);
+        assert_eq!(
+            codes(&check(&f, None, today())),
+            vec!["dates.implausible_birth"]
+        );
     }
 }

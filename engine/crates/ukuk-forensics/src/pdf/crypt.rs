@@ -7,7 +7,9 @@ use aes::cipher::{BlockCipherEncrypt, KeyInit};
 use md5::{Digest, Md5};
 use sha2::{Sha256, Sha384, Sha512};
 
-use super::syntax::{find_key, int_after, object_dict, ref_after, skip_ws, string_at, string_value_after};
+use super::syntax::{
+    find_key, int_after, object_dict, ref_after, skip_ws, string_at, string_value_after,
+};
 
 const PAD: [u8; 32] = [
     0x28, 0xBF, 0x4E, 0x5E, 0x4E, 0x75, 0x8A, 0x41, 0x64, 0x00, 0x4E, 0x56, 0xFF, 0xFA, 0x01, 0x08,
@@ -18,10 +20,16 @@ const PAD: [u8; 32] = [
 pub enum Encryption {
     None,
     /// Cifrado, pero la contraseña de usuario está vacía.
-    OpensWithoutPassword { revision: i64 },
-    PasswordRequired { revision: i64 },
+    OpensWithoutPassword {
+        revision: i64,
+    },
+    PasswordRequired {
+        revision: i64,
+    },
     /// Manejador no estándar (certificados, etc.): no se puede abrir.
-    Unsupported { filter: String },
+    Unsupported {
+        filter: String,
+    },
 }
 
 #[derive(Debug, Default)]
@@ -56,7 +64,11 @@ fn rc4(key: &[u8], data: &[u8]) -> Vec<u8> {
 
 /// Algoritmo 2 (ISO 32000-1, 7.6.3.3) con contraseña vacía.
 fn file_key(p: &StdParams) -> Vec<u8> {
-    let n = if p.revision == 2 { 5 } else { (p.length_bits / 8).clamp(5, 16) as usize };
+    let n = if p.revision == 2 {
+        5
+    } else {
+        (p.length_bits / 8).clamp(5, 16) as usize
+    };
     let mut h = Md5::new();
     h.update(PAD);
     h.update(&p.o);
@@ -183,7 +195,8 @@ fn read_params(raw: &[u8]) -> Option<StdParams> {
         Some(String::from_utf8_lossy(&rest[..end]).into_owned())
     };
     let int = |key: &[u8]| find_key(dict, key, 0).and_then(|k| int_after(dict, k, key.len()));
-    let string = |key: &[u8]| find_key(dict, key, 0).and_then(|k| string_value_after(dict, k, key.len()));
+    let string =
+        |key: &[u8]| find_key(dict, key, 0).and_then(|k| string_value_after(dict, k, key.len()));
     let id0 = find_key(raw, b"/ID", 0)
         .and_then(|k| {
             let i = skip_ws(raw, k + 3);
@@ -212,7 +225,9 @@ pub fn check(raw: &[u8]) -> Encryption {
         return Encryption::None;
     }
     let Some(p) = read_params(raw) else {
-        return Encryption::Unsupported { filter: "desconocido".into() };
+        return Encryption::Unsupported {
+            filter: "desconocido".into(),
+        };
     };
     if p.filter != "Standard" {
         return Encryption::Unsupported { filter: p.filter };
@@ -223,9 +238,13 @@ pub fn check(raw: &[u8]) -> Encryption {
         _ => false,
     };
     if opens {
-        Encryption::OpensWithoutPassword { revision: p.revision }
+        Encryption::OpensWithoutPassword {
+            revision: p.revision,
+        }
     } else {
-        Encryption::PasswordRequired { revision: p.revision }
+        Encryption::PasswordRequired {
+            revision: p.revision,
+        }
     }
 }
 
@@ -288,15 +307,29 @@ pub(crate) mod tests {
 
     #[test]
     fn detects_owner_only_vs_user_password() {
-        assert_eq!(check(&encrypted_pdf(true)), Encryption::OpensWithoutPassword { revision: 3 });
-        assert_eq!(check(&encrypted_pdf(false)), Encryption::PasswordRequired { revision: 3 });
-        assert_eq!(check(b"%PDF-1.4 trailer << /Root 1 0 R >>"), Encryption::None);
+        assert_eq!(
+            check(&encrypted_pdf(true)),
+            Encryption::OpensWithoutPassword { revision: 3 }
+        );
+        assert_eq!(
+            check(&encrypted_pdf(false)),
+            Encryption::PasswordRequired { revision: 3 }
+        );
+        assert_eq!(
+            check(b"%PDF-1.4 trailer << /Root 1 0 R >>"),
+            Encryption::None
+        );
     }
 
     #[test]
     fn non_standard_handler() {
         let pdf = b"%PDF-1.7\n5 0 obj << /Filter /Adobe.PubSec /V 4 >> endobj\ntrailer << /Encrypt 5 0 R >>";
-        assert_eq!(check(pdf), Encryption::Unsupported { filter: "Adobe.PubSec".into() });
+        assert_eq!(
+            check(pdf),
+            Encryption::Unsupported {
+                filter: "Adobe.PubSec".into()
+            }
+        );
     }
 
     #[test]
@@ -305,10 +338,20 @@ pub(crate) mod tests {
         let mut u = hash_2b(b"", salt, b"");
         u.extend_from_slice(salt);
         u.extend_from_slice(b"keysaltk");
-        let p = StdParams { filter: "Standard".into(), revision: 6, u: u.clone(), ..Default::default() };
+        let p = StdParams {
+            filter: "Standard".into(),
+            revision: 6,
+            u: u.clone(),
+            ..Default::default()
+        };
         assert!(check_aes256(&p));
         u[0] ^= 1;
-        let p = StdParams { filter: "Standard".into(), revision: 6, u, ..Default::default() };
+        let p = StdParams {
+            filter: "Standard".into(),
+            revision: 6,
+            u,
+            ..Default::default()
+        };
         assert!(!check_aes256(&p));
     }
 }

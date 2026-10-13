@@ -183,9 +183,8 @@ fn birth_check(query: &str, entry_dates: &[String]) -> BirthCheck {
 
 fn same_nationality(q: &str, list: &[String]) -> bool {
     let qc = country_code(q);
-    list.iter().any(|n| {
-        n.eq_ignore_ascii_case(q) || (qc.is_some() && country_code(n) == qc)
-    })
+    list.iter()
+        .any(|n| n.eq_ignore_ascii_case(q) || (qc.is_some() && country_code(n) == qc))
 }
 
 fn round4(v: f64) -> f64 {
@@ -297,7 +296,6 @@ mod tests {
             entries: 0,
             version: "v".into(),
             loaded_at: "2026-01-01T00:00:00Z".into(),
-            format: None,
         }
     }
 
@@ -318,10 +316,34 @@ mod tests {
         Arc::new(IndexedList::build(
             meta("test"),
             vec![
-                entry("1", "PEREZ DE LA CRUZ, Juan", &["EL CHATO"], EntryKind::Individual, &["1970-02-03"]),
-                entry("2", "QUISPE MAMANI, Rosa Elvira", &[], EntryKind::Individual, &["1965"]),
-                entry("3", "INVERSIONES EL DORADO S.A.C.", &[], EntryKind::Entity, &[]),
-                entry("4", "VASQUEZ HUAMAN, Wilber", &[], EntryKind::Individual, &[]),
+                entry(
+                    "1",
+                    "PEREZ DE LA CRUZ, Juan",
+                    &["EL CHATO"],
+                    EntryKind::Individual,
+                    &["1970-02-03"],
+                ),
+                entry(
+                    "2",
+                    "QUISPE MAMANI, Rosa Elvira",
+                    &[],
+                    EntryKind::Individual,
+                    &["1965"],
+                ),
+                entry(
+                    "3",
+                    "INVERSIONES EL DORADO S.A.C.",
+                    &[],
+                    EntryKind::Entity,
+                    &[],
+                ),
+                entry(
+                    "4",
+                    "VASQUEZ HUAMAN, Wilber",
+                    &[],
+                    EntryKind::Individual,
+                    &[],
+                ),
             ],
         ))
     }
@@ -341,7 +363,11 @@ mod tests {
         let m = screen(&[list()], &query);
         assert_eq!(m.len(), 1, "{m:?}");
         assert_eq!(m[0].entry_id, "1");
-        assert!(m[0].reasons.iter().any(|r| r == "fecha de nacimiento coincide"));
+        assert!(
+            m[0].reasons
+                .iter()
+                .any(|r| r == "fecha de nacimiento coincide")
+        );
         assert!(m[0].reasons.iter().any(|r| r == "nacionalidad coincide"));
         assert!(m[0].score > 0.88);
     }
@@ -358,7 +384,11 @@ mod tests {
         query.birth_date = Some("1965-07-07".into());
         let m = screen(&[list()], &query);
         assert_eq!(m[0].score, 1.0);
-        assert!(m[0].reasons.iter().any(|r| r == "año de nacimiento coincide"));
+        assert!(
+            m[0].reasons
+                .iter()
+                .any(|r| r == "año de nacimiento coincide")
+        );
     }
 
     #[test]
@@ -392,7 +422,14 @@ mod tests {
 
     #[test]
     fn batch_preserves_order() {
-        let r = screen_batch(&[list()], &[q("Rosa Quispe Mamani"), q("Nadie"), q("Wilber Vasquez Huaman")]);
+        let r = screen_batch(
+            &[list()],
+            &[
+                q("Rosa Quispe Mamani"),
+                q("Nadie"),
+                q("Wilber Vasquez Huaman"),
+            ],
+        );
         assert_eq!(r.len(), 3);
         assert_eq!(r[0][0].entry_id, "2");
         assert!(r[1].is_empty());

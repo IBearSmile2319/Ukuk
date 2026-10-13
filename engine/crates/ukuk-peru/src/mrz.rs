@@ -59,7 +59,9 @@ pub fn check_digit(field: &str) -> Option<u32> {
     field
         .bytes()
         .enumerate()
-        .try_fold(0u32, |acc, (i, c)| Some(acc + char_value(c)? * WEIGHTS[i % 3]))
+        .try_fold(0u32, |acc, (i, c)| {
+            Some(acc + char_value(c)? * WEIGHTS[i % 3])
+        })
         .map(|s| s % 10)
 }
 
@@ -81,14 +83,22 @@ fn split_lines(input: &str) -> (Vec<String>, bool) {
         .map(|l| {
             l.chars()
                 .filter(|c| !c.is_whitespace())
-                .map(|c| if c == '«' { '<' } else { c.to_ascii_uppercase() })
+                .map(|c| {
+                    if c == '«' {
+                        '<'
+                    } else {
+                        c.to_ascii_uppercase()
+                    }
+                })
                 .collect::<String>()
         })
         .filter(|l| !l.is_empty())
         .collect();
     if lines.len() == 1 && lines[0].len() == LINE_LEN * 3 && lines[0].is_ascii() {
         let l = lines.remove(0);
-        lines = (0..3).map(|i| l[i * LINE_LEN..(i + 1) * LINE_LEN].to_string()).collect();
+        lines = (0..3)
+            .map(|i| l[i * LINE_LEN..(i + 1) * LINE_LEN].to_string())
+            .collect();
     }
     let mut padded = false;
     for l in &mut lines {
@@ -117,7 +127,11 @@ fn yymmdd(s: &str) -> Option<(i32, u32, u32)> {
     if s.len() != 6 || !s.bytes().all(|b| b.is_ascii_digit()) {
         return None;
     }
-    Some((s[0..2].parse().ok()?, s[2..4].parse().ok()?, s[4..6].parse().ok()?))
+    Some((
+        s[0..2].parse().ok()?,
+        s[2..4].parse().ok()?,
+        s[4..6].parse().ok()?,
+    ))
 }
 
 /// Fecha de nacimiento: siempre en el pasado respecto de `today`.
@@ -135,7 +149,11 @@ pub fn resolve_birth(s: &str, today: NaiveDate) -> Option<NaiveDate> {
 /// Fecha de vencimiento: ventana desde hace 50 años hasta dentro de 50.
 pub fn resolve_expiry(s: &str, today: NaiveDate) -> Option<NaiveDate> {
     let (yy, m, d) = yymmdd(s)?;
-    let year = if 2000 + yy > today.year() + 50 { 1900 + yy } else { 2000 + yy };
+    let year = if 2000 + yy > today.year() + 50 {
+        1900 + yy
+    } else {
+        2000 + yy
+    };
     NaiveDate::from_ymd_opt(year, m, d)
 }
 
@@ -240,7 +258,11 @@ pub fn parse_td1(input: &str, today: NaiveDate) -> MrzAnalysis {
 
     let birth = resolve_birth(birth_raw, today);
     let no_expiry = expiry_raw.bytes().all(|b| b == b'<');
-    let expiry = if no_expiry { None } else { resolve_expiry(expiry_raw, today) };
+    let expiry = if no_expiry {
+        None
+    } else {
+        resolve_expiry(expiry_raw, today)
+    };
     mrz.birth_date = birth.map(|d| d.to_string());
     mrz.expiry_date = expiry.map(|d| d.to_string());
     let mut dates_ok = true;
@@ -270,8 +292,13 @@ pub fn parse_td1(input: &str, today: NaiveDate) -> MrzAnalysis {
     }
     if let Some(e) = expiry.filter(|e| *e < today) {
         findings.push(
-            finding("mrz.expired", Severity::Medium, 0.9, format!("Según la MRZ, el documento venció el {e}."))
-                .with_evidence(json!({ "expiry_date": e.to_string(), "today": today.to_string() })),
+            finding(
+                "mrz.expired",
+                Severity::Medium,
+                0.9,
+                format!("Según la MRZ, el documento venció el {e}."),
+            )
+            .with_evidence(json!({ "expiry_date": e.to_string(), "today": today.to_string() })),
         );
     }
 
@@ -290,9 +317,17 @@ pub fn parse_td1(input: &str, today: NaiveDate) -> MrzAnalysis {
     };
 
     let check_specs = [
-        ("document_number", mrz.checks.document_number, "número de documento"),
+        (
+            "document_number",
+            mrz.checks.document_number,
+            "número de documento",
+        ),
         ("birth_date", mrz.checks.birth_date, "fecha de nacimiento"),
-        ("expiry_date", mrz.checks.expiry_date, "fecha de vencimiento"),
+        (
+            "expiry_date",
+            mrz.checks.expiry_date,
+            "fecha de vencimiento",
+        ),
         ("composite", mrz.checks.composite, "dígito compuesto"),
     ];
     for (name, ok, label) in check_specs {
@@ -355,8 +390,10 @@ pub fn cross_check(mrz: &MrzData, fields: &DocumentFields, mrz_raw: Option<&str>
         .and_then(|raw| split_lines(raw).0.get(2).cloned())
         .is_some_and(|l3| l3.len() == LINE_LEN && !l3.ends_with('<'));
 
-    if let (Some(p), Some(m)) = (fields.dni.as_deref().map(str::trim), mrz.dni.as_deref().or(mrz.document_number.as_deref()))
-        && !p.is_empty()
+    if let (Some(p), Some(m)) = (
+        fields.dni.as_deref().map(str::trim),
+        mrz.dni.as_deref().or(mrz.document_number.as_deref()),
+    ) && !p.is_empty()
         && p != m
     {
         out.push(mismatch("mrz.dni_mismatch", "DNI", p, m, Severity::High));
@@ -365,16 +402,30 @@ pub fn cross_check(mrz: &MrzData, fields: &DocumentFields, mrz_raw: Option<&str>
         && !p.trim().is_empty()
         && !names_match(p, m, truncated)
     {
-        out.push(mismatch("mrz.surname_mismatch", "apellido", p.trim(), m, Severity::High));
+        out.push(mismatch(
+            "mrz.surname_mismatch",
+            "apellido",
+            p.trim(),
+            m,
+            Severity::High,
+        ));
     }
     if let (Some(p), Some(m)) = (fields.nombres.as_deref(), mrz.given_names.as_deref())
         && !p.trim().is_empty()
         && !names_match(p, m, truncated)
     {
-        out.push(mismatch("mrz.given_names_mismatch", "nombre", p.trim(), m, Severity::High));
+        out.push(mismatch(
+            "mrz.given_names_mismatch",
+            "nombre",
+            p.trim(),
+            m,
+            Severity::High,
+        ));
     }
-    if let (Some(p), Some(m)) = (fields.fecha_nacimiento.as_deref(), mrz.birth_date.as_deref())
-        && let Some(pd) = dates::parse_valid(p)
+    if let (Some(p), Some(m)) = (
+        fields.fecha_nacimiento.as_deref(),
+        mrz.birth_date.as_deref(),
+    ) && let Some(pd) = dates::parse_valid(p)
         && pd.to_string() != m
     {
         out.push(mismatch(
@@ -385,8 +436,10 @@ pub fn cross_check(mrz: &MrzData, fields: &DocumentFields, mrz_raw: Option<&str>
             Severity::High,
         ));
     }
-    if let (Some(p), Some(m)) = (fields.fecha_vencimiento.as_deref(), mrz.expiry_date.as_deref())
-        && let Some(pd) = dates::parse_valid(p)
+    if let (Some(p), Some(m)) = (
+        fields.fecha_vencimiento.as_deref(),
+        mrz.expiry_date.as_deref(),
+    ) && let Some(pd) = dates::parse_valid(p)
         && pd.to_string() != m
     {
         out.push(mismatch(
@@ -400,9 +453,15 @@ pub fn cross_check(mrz: &MrzData, fields: &DocumentFields, mrz_raw: Option<&str>
     if let (Some(p), Some(m)) = (fields.sexo.as_deref(), mrz.sex.as_deref())
         && let Some(pc) = sex_code(p)
         && m != "X"
-        && m.chars().next() != Some(pc)
+        && !m.starts_with(pc)
     {
-        out.push(mismatch("mrz.sex_mismatch", "sexo", p.trim(), m, Severity::Medium));
+        out.push(mismatch(
+            "mrz.sex_mismatch",
+            "sexo",
+            p.trim(),
+            m,
+            Severity::Medium,
+        ));
     }
     out
 }
@@ -443,7 +502,11 @@ pub mod testing {
         );
         let composite = format!("{}{}{}{}", &l1[5..30], &head[0..7], &head[8..15], opt2);
         let l2 = format!("{head}{opt2}{}", check_digit(&composite).unwrap());
-        let name = format!("{}<<{}", surnames.replace(' ', "<"), given.replace(' ', "<"));
+        let name = format!(
+            "{}<<{}",
+            surnames.replace(' ', "<"),
+            given.replace(' ', "<")
+        );
         let l3: String = pad(&name, 30).chars().take(30).collect();
         format!("{l1}\n{l2}\n{l3}")
     }
@@ -459,7 +522,15 @@ mod tests {
     }
 
     fn sample() -> String {
-        build_td1("12345678", "900531", 'M', "300101", "PEREZ GARCIA", "JUAN CARLOS", "")
+        build_td1(
+            "12345678",
+            "900531",
+            'M',
+            "300101",
+            "PEREZ GARCIA",
+            "JUAN CARLOS",
+            "",
+        )
     }
 
     fn codes(f: &[Finding]) -> Vec<&str> {
@@ -511,7 +582,15 @@ mod tests {
 
     #[test]
     fn dni_in_optional_data() {
-        let mrz = build_td1("A1B2C3D4E", "900531", 'F', "300101", "QUISPE", "ROSA", "<87654321<");
+        let mrz = build_td1(
+            "A1B2C3D4E",
+            "900531",
+            'F',
+            "300101",
+            "QUISPE",
+            "ROSA",
+            "<87654321<",
+        );
         let a = parse_td1(&mrz, today());
         assert!(a.mrz.valid);
         assert_eq!(a.mrz.document_number.as_deref(), Some("A1B2C3D4E"));
@@ -596,7 +675,11 @@ mod tests {
         let cd = check_digit(full).unwrap();
         let l1 = format!("I<PER{}<{}{}", &full[..9], &full[9..], cd);
         let l1 = format!("{l1:<<30}");
-        let head = format!("900531{}M300101{}PER", check_digit("900531").unwrap(), check_digit("300101").unwrap());
+        let head = format!(
+            "900531{}M300101{}PER",
+            check_digit("900531").unwrap(),
+            check_digit("300101").unwrap()
+        );
         let opt2 = "<".repeat(11);
         let comp = format!("{}{}{}{}", &l1[5..30], &head[0..7], &head[8..15], opt2);
         let l2 = format!("{head}{opt2}{}", check_digit(&comp).unwrap());
@@ -608,7 +691,15 @@ mod tests {
 
     #[test]
     fn cross_check_matches_accent_insensitive() {
-        let raw = build_td1("12345678", "900531", 'M', "300101", "MUNOZ DE LA CRUZ", "JOSE", "");
+        let raw = build_td1(
+            "12345678",
+            "900531",
+            'M',
+            "300101",
+            "MUNOZ DE LA CRUZ",
+            "JOSE",
+            "",
+        );
         let a = parse_td1(&raw, today());
         let fields = DocumentFields {
             dni: Some("12345678".into()),

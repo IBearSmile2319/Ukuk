@@ -2,6 +2,10 @@
 //! la diferencia media. Zonas que "reaccionan" distinto a la recompresión
 //! sugieren un historial de compresión diferente (pegado, retoque). Es una
 //! señal ruidosa (bordes y texturas también elevan el error): confianza ≤ 0,6.
+//!
+//! Para no marcar simplemente "donde hay texto", cada bloque se compara además
+//! con los bloques de actividad (gradiente medio) similar: se buscan bloques
+//! cuyo error es alto *para su textura*, además de alto en términos absolutos.
 
 use std::io::Cursor;
 
@@ -15,8 +19,13 @@ use ukuk_core::{Finding, Layer, Region, Severity};
 pub const RECOMPRESS_QUALITY: u8 = 90;
 pub const BLOCK: u32 = 16;
 /// Piso absoluto (diferencia media por píxel) para marcar un bloque.
-pub const ABS_FLOOR: f64 = 3.0;
+pub const ABS_FLOOR: f64 = 2.0;
+/// Además, el bloque debe superar este múltiplo de la media global.
+pub const REL_FLOOR: f64 = 2.5;
 pub const SIGMAS: f64 = 3.0;
+/// z robusto mínimo del error respecto de bloques de textura similar.
+const ROBUST_Z: f64 = 3.5;
+const ACTIVITY_BUCKETS: usize = 10;
 pub const MIN_REGION_BLOCKS: usize = 2;
 pub const MAX_REPORTED_REGIONS: usize = 5;
 
@@ -49,15 +58,20 @@ fn round(v: f64) -> f64 {
     (v * 100.0).round() / 100.0
 }
 
-/// Mapa de error medio por bloque (`cols × rows`).
-pub fn block_errors(img: &RgbImage, quality: u8) -> Option<(Vec<f64>, u32, u32)> {
+/// Mapa de error medio por bloque y de actividad (gradiente medio de luminancia),
+/// ambos de tamaño `cols × rows`.
+pub fn block_errors(img: &RgbImage, quality: u8) -> Option<(Vec<f64>, Vec<f64>, u32, u32)> {
     let (w, h) = img.dimensions();
     if w < BLOCK || h < BLOCK {
         return None;
     }
     let mut buf = Vec::new();
-    JpegEncoder::new_with_quality(&mut buf, quality).encode_image(img).ok()?;
-    let re = ::image::load(Cursor::new(buf), ImageFormat::Jpeg).ok()?.to_rgb8();
+    JpegEncoder::new_with_quality(&mut buf, quality)
+        .encode_image(img)
+        .ok()?;
+    let re = ::image::load(Cursor::new(buf), ImageFormat::Jpeg)
+        .ok()?
+        .to_rgb8();
     let cols = w.div_ceil(BLOCK);
     let rows = h.div_ceil(BLOCK);
     let mut sums = vec![0.0f64; (cols * rows) as usize];
@@ -65,14 +79,63 @@ pub fn block_errors(img: &RgbImage, quality: u8) -> Option<(Vec<f64>, u32, u32)>
     for (y, (row_a, row_b)) in img.rows().zip(re.rows()).enumerate() {
         let by = y as u32 / BLOCK;
         for (x, (a, b)) in row_a.zip(row_b).enumerate() {
-            let d: u32 = a.0.iter().zip(b.0.iter()).map(|(p, q)| u32::from(p.abs_diff(*q))).sum();
+            let d: u32 =
+                a.0.iter()
+                    .zip(b.0.iter())
+                    .map(|(p, q)| u32::from(p.abs_diff(*q)))
+                    .sum();
             let idx = (by * cols + x as u32 / BLOCK) as usize;
             sums[idx] += f64::from(d) / 3.0;
             counts[idx] += 1;
         }
     }
-    let means = sums.iter().zip(&counts).map(|(s, c)| s / f64::from((*c).max(1))).collect();
-    Some((means, cols, rows))
+    let luma = |x: u32, y: u32| {
+        let p = img.get_pixel(x, y).0;
+        (299 * u32::from(p[0]) + 587 * u32::from(p[1]) + 114 * u32::from(p[2])) as f64 / 1000.0
+    };
+    let mut act = vec![0.0f64; (cols * rows) as usize];
+    for y in 0..h - 1 {
+        for x in 0..w - 1 {
+            let c = luma(x, y);
+            let g = (luma(x + 1, y) - c).abs() + (luma(x, y + 1) - c).abs();
+            act[((y / BLOCK) * cols + x / BLOCK) as usize] += g;
+        }
+    }
+    let means = sums
+        .iter()
+        .zip(&counts)
+        .map(|(s, c)| s / f64::from((*c).max(1)))
+        .collect();
+    let act = act
+        .iter()
+        .zip(&counts)
+        .map(|(s, c)| s / f64::from((*c).max(1)))
+        .collect();
+    Some((means, act, cols, rows))
+}
+
+fn median(v: &mut [f64]) -> f64 {
+    v.sort_by(f64::total_cmp);
+    v[v.len() / 2]
+}
+
+/// z robusto del error de cada bloque frente a los bloques de su decil de
+/// actividad: compara texto con texto y papel con papel.
+fn activity_residuals(errs: &[f64], act: &[f64]) -> Vec<f64> {
+    let mut order: Vec<usize> = (0..errs.len()).collect();
+    order.sort_by(|a, b| act[*a].total_cmp(&act[*b]));
+    let mut z = vec![0.0; errs.len()];
+    let size = errs.len().div_ceil(ACTIVITY_BUCKETS).max(1);
+    for bucket in order.chunks(size) {
+        let mut vals: Vec<f64> = bucket.iter().map(|i| errs[*i]).collect();
+        let med = median(&mut vals);
+        let mut dev: Vec<f64> = bucket.iter().map(|i| (errs[*i] - med).abs()).collect();
+        let scale = (median(&mut dev) * 1.4826).max(0.25);
+        for i in bucket {
+            z[*i] = (errs[*i] - med) / scale;
+        }
+    }
+    z
 }
 
 pub fn analyze(img: &RgbImage, quality: u8) -> ElaResult {
@@ -85,15 +148,26 @@ pub fn analyze(img: &RgbImage, quality: u8) -> ElaResult {
         regions: Vec::new(),
         threshold: 0.0,
     };
-    let Some((errs, cols, rows)) = block_errors(img, quality) else {
+    let Some((errs, act, cols, rows)) = block_errors(img, quality) else {
         return empty;
     };
-    let n = errs.len() as f64;
-    let mean = errs.iter().sum::<f64>() / n;
-    let std = (errs.iter().map(|e| (e - mean).powi(2)).sum::<f64>() / n).sqrt();
+    let stats = |v: &[f64]| {
+        let n = v.len() as f64;
+        let m = v.iter().sum::<f64>() / n;
+        (
+            m,
+            (v.iter().map(|e| (e - m).powi(2)).sum::<f64>() / n).sqrt(),
+        )
+    };
+    let (mean, std) = stats(&errs);
     let max = errs.iter().copied().fold(0.0, f64::max);
-    let threshold = (mean + SIGMAS * std).max(ABS_FLOOR);
-    let flagged: Vec<bool> = errs.iter().map(|e| *e > threshold).collect();
+    let threshold = (mean + SIGMAS * std).max(ABS_FLOOR).max(REL_FLOOR * mean);
+    let z = activity_residuals(&errs, &act);
+    let flagged: Vec<bool> = errs
+        .iter()
+        .zip(&z)
+        .map(|(e, z)| *e > threshold && *z > ROBUST_Z)
+        .collect();
 
     // Componentes 8-conexas de bloques marcados.
     let mut seen = vec![false; flagged.len()];
@@ -166,7 +240,10 @@ pub fn finding(
     width: u32,
     height: u32,
 ) -> Finding {
-    let region = super::orient_region(Region::from_pixels(1, r.x, r.y, r.w, r.h, width, height), orientation);
+    let region = super::orient_region(
+        Region::from_pixels(1, r.x, r.y, r.w, r.h, width, height),
+        orientation,
+    );
     let evidence = json!({
         "blocks": r.blocks,
         "region_mean": round(r.mean),
@@ -210,7 +287,8 @@ mod tests {
     /// pegado antes del último guardado.
     fn spliced() -> (RgbImage, (u32, u32, u32, u32)) {
         let base = decode_rgb(&encode_jpeg(&textured_rgb(512, 384, 21), 60));
-        let patch = ::image::imageops::crop_imm(&textured_rgb(512, 384, 99), 0, 0, 128, 96).to_image();
+        let patch =
+            ::image::imageops::crop_imm(&textured_rgb(512, 384, 99), 0, 0, 128, 96).to_image();
         let mut doc = base;
         overlay(&mut doc, &patch, 224, 160);
         (decode_rgb(&encode_jpeg(&doc, 92)), (224, 160, 128, 96))
@@ -230,9 +308,54 @@ mod tests {
 
     #[test]
     fn uniform_history_is_clean() {
-        let img = decode_rgb(&encode_jpeg(&decode_rgb(&encode_jpeg(&textured_rgb(512, 384, 21), 60)), 92));
+        let img = decode_rgb(&encode_jpeg(
+            &decode_rgb(&encode_jpeg(&textured_rgb(512, 384, 21), 60)),
+            92,
+        ));
         let r = analyze(&img, RECOMPRESS_QUALITY);
         assert_eq!(r.summary.suspicious_regions, 0, "{r:?}");
+    }
+
+    /// Página blanca con "texto" disperso (trazos oscuros), comprimida una vez.
+    pub(crate) fn sparse_text_page(seed: u64) -> RgbImage {
+        let mut rng = Lcg(seed);
+        let mut img = RgbImage::from_pixel(640, 480, ::image::Rgb([245, 245, 240]));
+        for line in 0..6u32 {
+            let y = 60 + line * 60;
+            let mut x = 40;
+            while x < 560 {
+                let w = 6 + rng.next() % 30;
+                for yy in y..y + 14 {
+                    for xx in x..(x + w).min(600) {
+                        if (xx + yy + rng.next()) % 3 != 0 {
+                            img.put_pixel(xx, yy, ::image::Rgb([30, 30, 40]));
+                        }
+                    }
+                }
+                x += w + 8 + rng.next() % 12;
+            }
+        }
+        img
+    }
+
+    #[test]
+    fn sparse_text_document_is_clean() {
+        for seed in 1..4 {
+            for q in [75, 85, 95] {
+                let mut page = sparse_text_page(seed);
+                if seed == 3 {
+                    // papel con grano (foto)
+                    let mut rng = Lcg(9);
+                    for p in page.pixels_mut() {
+                        let n = (rng.next() % 9) as u8;
+                        p.0 = p.0.map(|v| v.saturating_sub(n));
+                    }
+                }
+                let img = decode_rgb(&encode_jpeg(&page, q));
+                let r = analyze(&img, RECOMPRESS_QUALITY);
+                assert_eq!(r.summary.suspicious_regions, 0, "seed {seed} q {q}: {r:?}");
+            }
+        }
     }
 
     #[test]
@@ -243,8 +366,20 @@ mod tests {
 
     #[test]
     fn finding_softened_for_png() {
-        let region = ElaRegion { x: 0, y: 0, w: 32, h: 32, blocks: 4, mean: 9.0, peak: 12.0 };
-        let s = ElaSummary { mean: 2.0, max: 12.0, suspicious_regions: 1 };
+        let region = ElaRegion {
+            x: 0,
+            y: 0,
+            w: 32,
+            h: 32,
+            blocks: 4,
+            mean: 9.0,
+            peak: 12.0,
+        };
+        let s = ElaSummary {
+            mean: 2.0,
+            max: 12.0,
+            suspicious_regions: 1,
+        };
         let j = finding(&region, &s, true, Orientation::NoTransforms, 100, 100);
         let p = finding(&region, &s, false, Orientation::NoTransforms, 100, 100);
         assert!(j.confidence <= 0.6 && j.severity == Severity::Medium);

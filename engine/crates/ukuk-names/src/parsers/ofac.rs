@@ -21,8 +21,13 @@ fn clean(v: Option<&str>) -> Option<String> {
 }
 
 fn month(m: &str) -> Option<u32> {
-    let months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    months.iter().position(|x| x.eq_ignore_ascii_case(m)).map(|i| i as u32 + 1)
+    let months = [
+        "JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+    ];
+    months
+        .iter()
+        .position(|x| x.eq_ignore_ascii_case(m))
+        .map(|i| i as u32 + 1)
 }
 
 /// "01 Jan 1960" → "1960-01-01"; "Jan 1960" → "1960-01"; "circa 1960" → "1960".
@@ -74,11 +79,15 @@ pub fn parse(raw: &[u8]) -> Result<Vec<Entry>, ParseError> {
     let mut out = Vec::new();
     for rec in reader.records() {
         let rec = rec.map_err(|e| ParseError::Csv(e.to_string()))?;
-        let Some(id) = clean(rec.get(0)) else { continue };
+        let Some(id) = clean(rec.get(0)) else {
+            continue;
+        };
         if id.eq_ignore_ascii_case("ent_num") || rec.len() < 2 {
             continue;
         }
-        let Some(name) = clean(rec.get(1)) else { continue };
+        let Some(name) = clean(rec.get(1)) else {
+            continue;
+        };
         let sdn_type = clean(rec.get(2)).unwrap_or_default().to_ascii_lowercase();
         let kind = if sdn_type == "individual" {
             EntryKind::Individual
@@ -88,7 +97,10 @@ pub fn parse(raw: &[u8]) -> Result<Vec<Entry>, ParseError> {
         let programs = clean(rec.get(3))
             .map(|p| {
                 p.split("] [")
-                    .map(|s| s.trim_matches(|c: char| c == '[' || c == ']' || c.is_whitespace()).to_string())
+                    .map(|s| {
+                        s.trim_matches(|c: char| c == '[' || c == ']' || c.is_whitespace())
+                            .to_string()
+                    })
                     .filter(|s| !s.is_empty())
                     .collect()
             })

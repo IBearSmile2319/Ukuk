@@ -164,7 +164,10 @@ pub fn check(fields: &DocumentFields, document_type: Option<DocumentType>) -> Ve
         }
     }
 
-    if let Some(sn) = fields.serie_numero.as_deref().filter(|s| !s.trim().is_empty())
+    if let Some(sn) = fields
+        .serie_numero
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
         && let Some(f) = serie_finding(sn, document_type)
     {
         out.push(f);
@@ -196,8 +199,16 @@ fn serie_finding(serie_numero: &str, document_type: Option<DocumentType>) -> Opt
     }
     let sn = serie_numero.trim().to_ascii_uppercase();
     let mk = |msg: String, reason: &str| {
-        Finding::new("invoice.serie_format", Layer::Consistency, Severity::High, 0.9, msg)
-            .with_evidence(json!({ "serie_numero": sn, "reason": reason, "document_type": document_type }))
+        Finding::new(
+            "invoice.serie_format",
+            Layer::Consistency,
+            Severity::High,
+            0.9,
+            msg,
+        )
+        .with_evidence(
+            json!({ "serie_numero": sn, "reason": reason, "document_type": document_type }),
+        )
     };
     if !serie_format_ok(&sn) {
         return Some(mk(
@@ -208,11 +219,17 @@ fn serie_finding(serie_numero: &str, document_type: Option<DocumentType>) -> Opt
     let first = sn.as_bytes()[0];
     match document_type {
         Some(DocumentType::Factura) if !matches!(first, b'F' | b'E') => Some(mk(
-            format!("La serie «{}» no corresponde a una factura (debe iniciar con F o E).", &sn[..4]),
+            format!(
+                "La serie «{}» no corresponde a una factura (debe iniciar con F o E).",
+                &sn[..4]
+            ),
             "prefix",
         )),
         Some(DocumentType::BoletaVenta) if !matches!(first, b'B' | b'E') => Some(mk(
-            format!("La serie «{}» no corresponde a una boleta de venta (debe iniciar con B o E).", &sn[..4]),
+            format!(
+                "La serie «{}» no corresponde a una boleta de venta (debe iniciar con B o E).",
+                &sn[..4]
+            ),
             "prefix",
         )),
         _ => None,
@@ -304,10 +321,16 @@ mod tests {
             serie_numero: Some("B001-123".into()),
             ..Default::default()
         };
-        assert_eq!(codes(&check(&f, Some(DocumentType::Factura))), vec!["invoice.serie_format"]);
+        assert_eq!(
+            codes(&check(&f, Some(DocumentType::Factura))),
+            vec!["invoice.serie_format"]
+        );
         assert!(check(&f, Some(DocumentType::BoletaVenta)).is_empty());
         f.serie_numero = Some("F001-123".into());
-        assert_eq!(codes(&check(&f, Some(DocumentType::BoletaVenta))), vec!["invoice.serie_format"]);
+        assert_eq!(
+            codes(&check(&f, Some(DocumentType::BoletaVenta))),
+            vec!["invoice.serie_format"]
+        );
         f.serie_numero = Some("E001-55".into());
         assert!(check(&f, Some(DocumentType::Factura)).is_empty());
         assert!(check(&f, Some(DocumentType::BoletaVenta)).is_empty());

@@ -17,13 +17,15 @@ fn meta(source: &str, category: Category, n: usize) -> ListMeta {
         entries: n,
         version: "test".into(),
         loaded_at: "2026-10-13T00:00:00Z".into(),
-        format: None,
     }
 }
 
 fn indexed(source: &str, format: ListFormat, raw: &[u8], category: Category) -> Arc<IndexedList> {
     let entries = parse(format, raw).expect("parse");
-    Arc::new(IndexedList::build(meta(source, category, entries.len()), entries))
+    Arc::new(IndexedList::build(
+        meta(source, category, entries.len()),
+        entries,
+    ))
 }
 
 fn query(name: &str) -> ScreenQuery {
@@ -93,7 +95,11 @@ fn parses_jsonl() {
 
 #[test]
 fn rejects_bad_inputs() {
-    let err = parse(ListFormat::UkukJsonl, b"{\"id\":\"1\",\"name\":\"A\"}\n{oops").unwrap_err();
+    let err = parse(
+        ListFormat::UkukJsonl,
+        b"{\"id\":\"1\",\"name\":\"A\"}\n{oops",
+    )
+    .unwrap_err();
     assert!(err.to_string().contains("línea 2"), "{err}");
     assert!(parse(ListFormat::UkukJsonl, b"{\"id\":\"\",\"name\":\"A\"}").is_err());
     assert!(parse(ListFormat::UnXml, b"<CONSOLIDATED_LIST><INDIVIDUALS></x>").is_err());
@@ -144,15 +150,52 @@ fn synthetic_entries(n: usize, seed: u64) -> Vec<Entry> {
         "FREDY", "NANCY", "MARCO", "RAUL", "HUGO", "PERCY", "YOLANDA", "HILDA", "OSCAR", "ELMER",
     ];
     const SURNAMES: &[&str] = &[
-        "QUISPE", "FLORES", "SANCHEZ", "RODRIGUEZ", "GARCIA", "HUAMAN", "MAMANI", "CHAVEZ",
-        "RAMOS", "TORRES", "DIAZ", "CASTILLO", "VASQUEZ", "MENDOZA", "ROJAS", "GUTIERREZ",
-        "ESPINOZA", "LOPEZ", "PEREZ", "CRUZ", "CONDORI", "TICONA", "APAZA", "CCAHUANA", "HUANCA",
-        "VILCA", "PUMA", "CUSI", "TAIPE", "YUPANQUI", "CHOQUE", "SALAZAR", "MORALES", "VARGAS",
-        "LEON", "SILVA", "CAMPOS", "REYES", "CORDOVA", "PAREDES",
+        "QUISPE",
+        "FLORES",
+        "SANCHEZ",
+        "RODRIGUEZ",
+        "GARCIA",
+        "HUAMAN",
+        "MAMANI",
+        "CHAVEZ",
+        "RAMOS",
+        "TORRES",
+        "DIAZ",
+        "CASTILLO",
+        "VASQUEZ",
+        "MENDOZA",
+        "ROJAS",
+        "GUTIERREZ",
+        "ESPINOZA",
+        "LOPEZ",
+        "PEREZ",
+        "CRUZ",
+        "CONDORI",
+        "TICONA",
+        "APAZA",
+        "CCAHUANA",
+        "HUANCA",
+        "VILCA",
+        "PUMA",
+        "CUSI",
+        "TAIPE",
+        "YUPANQUI",
+        "CHOQUE",
+        "SALAZAR",
+        "MORALES",
+        "VARGAS",
+        "LEON",
+        "SILVA",
+        "CAMPOS",
+        "REYES",
+        "CORDOVA",
+        "PAREDES",
     ];
     let mut state = seed;
     let mut next = |m: usize| {
-        state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+        state = state
+            .wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407);
         ((state >> 33) as usize) % m
     };
     (0..n)

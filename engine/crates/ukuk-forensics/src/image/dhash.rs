@@ -29,7 +29,9 @@ pub fn hamming_u64(a: u64, b: u64) -> u32 {
 pub fn hamming(a: &str, b: &str) -> Option<u32> {
     let parse = |s: &str| {
         let s = s.trim();
-        (s.len() == 16).then(|| u64::from_str_radix(s, 16).ok()).flatten()
+        (s.len() == 16)
+            .then(|| u64::from_str_radix(s, 16).ok())
+            .flatten()
     };
     Some(hamming_u64(parse(a)?, parse(b)?))
 }

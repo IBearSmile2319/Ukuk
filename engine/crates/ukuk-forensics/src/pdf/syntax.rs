@@ -5,7 +5,10 @@ pub fn is_whitespace(b: u8) -> bool {
 }
 
 pub fn is_delimiter(b: u8) -> bool {
-    matches!(b, b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'{' | b'}' | b'/' | b'%')
+    matches!(
+        b,
+        b'(' | b')' | b'<' | b'>' | b'[' | b']' | b'{' | b'}' | b'/' | b'%'
+    )
 }
 
 pub fn skip_ws(data: &[u8], mut i: usize) -> usize {
@@ -162,10 +165,12 @@ pub fn int_after(data: &[u8], key_pos: usize, key_len: usize) -> Option<i64> {
 /// Referencia indirecta `N G R` después de `/Key`.
 pub fn ref_after(data: &[u8], key_pos: usize, key_len: usize) -> Option<(u32, u32)> {
     let rest = &data[skip_ws(data, key_pos + key_len)..];
-    let text = std::str::from_utf8(&rest[..rest.len().min(32)]).ok().or_else(|| {
-        let n = rest.iter().take(32).take_while(|b| b.is_ascii()).count();
-        std::str::from_utf8(&rest[..n]).ok()
-    })?;
+    let text = std::str::from_utf8(&rest[..rest.len().min(32)])
+        .ok()
+        .or_else(|| {
+            let n = rest.iter().take(32).take_while(|b| b.is_ascii()).count();
+            std::str::from_utf8(&rest[..n]).ok()
+        })?;
     let mut it = text.split_ascii_whitespace();
     let n = it.next()?.parse().ok()?;
     let g = it.next()?.parse().ok()?;

@@ -33,7 +33,14 @@ const COUNTRIES: &[(&str, &[&str])] = &[
     ("GB", &["UNITED KINGDOM", "REINO UNIDO"]),
     ("RU", &["RUSSIA", "RUSSIAN FEDERATION", "RUSIA"]),
     ("CN", &["CHINA"]),
-    ("KP", &["NORTH KOREA", "KOREA NORTH", "DEMOCRATIC PEOPLE S REPUBLIC OF KOREA"]),
+    (
+        "KP",
+        &[
+            "NORTH KOREA",
+            "KOREA NORTH",
+            "DEMOCRATIC PEOPLE S REPUBLIC OF KOREA",
+        ],
+    ),
     ("IR", &["IRAN", "IRAN ISLAMIC REPUBLIC OF"]),
     ("IQ", &["IRAQ"]),
     ("SY", &["SYRIA", "SYRIAN ARAB REPUBLIC"]),

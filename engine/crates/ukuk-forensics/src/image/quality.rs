@@ -125,7 +125,9 @@ pub fn findings(m: &QualityMetrics, width: u32, height: u32) -> Vec<Finding> {
                 0.6,
                 "Hay reflejos o zonas sobreexpuestas que pueden ocultar información.",
             )
-            .with_evidence(json!({ "glare_ratio": m.glare_ratio, "glare_peak": round(m.glare_peak, 3) })),
+            .with_evidence(
+                json!({ "glare_ratio": m.glare_ratio, "glare_peak": round(m.glare_peak, 3) }),
+            ),
         );
     }
     if m.brightness < DARK_THRESHOLD {
@@ -180,7 +182,8 @@ mod tests {
 
     #[test]
     fn glare_is_localized_saturation() {
-        let mut g = ::image::imageops::resize(&noise_gray(800, 800, 4), 800, 800, FilterType::Nearest);
+        let mut g =
+            ::image::imageops::resize(&noise_gray(800, 800, 4), 800, 800, FilterType::Nearest);
         for p in g.pixels_mut() {
             p.0[0] = p.0[0] / 2 + 60;
         }

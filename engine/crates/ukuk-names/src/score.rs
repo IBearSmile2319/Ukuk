@@ -134,7 +134,11 @@ pub fn name_similarity(q: &PreparedName, c: &PreparedName) -> NameScore {
         matched,
         query_tokens: nq,
         candidate_tokens: nc,
-        mean_similarity: if sim_n > 0 { sim_sum / sim_n as f64 } else { INITIAL_SIM },
+        mean_similarity: if sim_n > 0 {
+            sim_sum / sim_n as f64
+        } else {
+            INITIAL_SIM
+        },
     }
 }
 

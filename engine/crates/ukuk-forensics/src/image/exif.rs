@@ -18,12 +18,36 @@ pub struct ExifInfo {
 
 /// Editores de contenido (alteran píxeles) y editores de ajuste (color, recorte).
 const CONTENT_EDITORS: &[&str] = &[
-    "photoshop", "gimp", "photopea", "canva", "picsart", "pixlr", "affinity", "paint.net",
-    "paintshop", "corel", "pixelmator", "fotor", "facetune", "meitu", "inpixio", "photodirector",
+    "photoshop",
+    "gimp",
+    "photopea",
+    "canva",
+    "picsart",
+    "pixlr",
+    "affinity",
+    "paint.net",
+    "paintshop",
+    "corel",
+    "pixelmator",
+    "fotor",
+    "facetune",
+    "meitu",
+    "inpixio",
+    "photodirector",
 ];
 const ADJUST_EDITORS: &[&str] = &[
-    "lightroom", "snapseed", "vsco", "polarr", "luminar", "capture one", "acdsee", "remini",
-    "picsart", "inshot", "darktable", "rawtherapee",
+    "lightroom",
+    "snapseed",
+    "vsco",
+    "polarr",
+    "luminar",
+    "capture one",
+    "acdsee",
+    "remini",
+    "picsart",
+    "inshot",
+    "darktable",
+    "rawtherapee",
 ];
 
 fn ascii(field: Option<&exif::Field>) -> Option<String> {
@@ -32,7 +56,12 @@ fn ascii(field: Option<&exif::Field>) -> Option<String> {
         Value::Ascii(parts) => {
             let s = parts
                 .iter()
-                .map(|p| String::from_utf8_lossy(p).trim_matches(char::from(0)).trim().to_string())
+                .map(|p| {
+                    String::from_utf8_lossy(p)
+                        .trim_matches(char::from(0))
+                        .trim()
+                        .to_string()
+                })
                 .filter(|s| !s.is_empty())
                 .collect::<Vec<_>>()
                 .join(" ");
@@ -161,7 +190,10 @@ mod tests {
     fn reads_software_and_gps() {
         let bytes = jpeg_with_exif("Adobe Photoshop 25.0 (Windows)");
         let info = read(&bytes).expect("exif");
-        assert_eq!(info.software.as_deref(), Some("Adobe Photoshop 25.0 (Windows)"));
+        assert_eq!(
+            info.software.as_deref(),
+            Some("Adobe Photoshop 25.0 (Windows)")
+        );
         assert_eq!(info.make.as_deref(), Some("ACME"));
         assert!(info.has_gps);
         let f = findings(&info);
@@ -193,7 +225,9 @@ mod tests {
     #[test]
     fn xmp_fallback() {
         let mut bytes = encode_jpeg(&textured_rgb(32, 32, 1), 80);
-        bytes.extend_from_slice(b"<x:xmpmeta><rdf:Description xmp:CreatorTool=\"Canva\"/></x:xmpmeta>");
+        bytes.extend_from_slice(
+            b"<x:xmpmeta><rdf:Description xmp:CreatorTool=\"Canva\"/></x:xmpmeta>",
+        );
         assert_eq!(xmp_creator_tool(&bytes).as_deref(), Some("Canva"));
         assert_eq!(
             xmp_creator_tool(b"<xmp:CreatorTool>GIMP 2.10</xmp:CreatorTool>").as_deref(),

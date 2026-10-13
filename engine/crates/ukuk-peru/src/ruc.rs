@@ -96,8 +96,14 @@ pub fn findings(ruc: &str) -> Vec<Finding> {
         ),
     };
     vec![
-        Finding::new("ruc.invalid", Layer::Consistency, Severity::High, 0.95, message)
-            .with_evidence(json!({ "ruc": ruc, "reason": reason })),
+        Finding::new(
+            "ruc.invalid",
+            Layer::Consistency,
+            Severity::High,
+            0.95,
+            message,
+        )
+        .with_evidence(json!({ "ruc": ruc, "reason": reason })),
     ]
 }
 
@@ -169,6 +175,9 @@ mod tests {
     #[test]
     fn kind_serialization() {
         let v = serde_json::to_value(validate("20100047218")).unwrap();
-        assert_eq!(v, serde_json::json!({"valid": true, "kind": "persona_juridica"}));
+        assert_eq!(
+            v,
+            serde_json::json!({"valid": true, "kind": "persona_juridica"})
+        );
     }
 }
