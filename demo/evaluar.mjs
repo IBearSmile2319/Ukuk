@@ -67,13 +67,17 @@ async function call(method, path, init = {}) {
   return body;
 }
 
-// Un cliente aparte para que la evaluación no se mezcle con otros datos.
-const json = { 'content-type': 'application/json', 'x-admin-token': ADMIN };
-const tenant = await call('POST', '/admin/tenants', {
-  headers: json,
-  body: JSON.stringify({ name: `Evaluación ${new Date().toISOString().slice(0, 16)}`, entityType: 'otro', modules: ['documents'] }),
-});
-const { key } = await call('POST', `/admin/tenants/${tenant.id}/api-keys`, { headers: json, body: JSON.stringify({ name: 'evaluacion' }) });
+// Un cliente aparte para que la evaluación no se mezcle con otros datos. Con UKUK_EVAL_KEY se
+// reusa uno ya creado: así varias carpetas quedan en el mismo cliente y se ven con una sola llave.
+let key = process.env.UKUK_EVAL_KEY;
+if (!key) {
+  const json = { 'content-type': 'application/json', 'x-admin-token': ADMIN };
+  const tenant = await call('POST', '/admin/tenants', {
+    headers: json,
+    body: JSON.stringify({ name: `Evaluación ${new Date().toISOString().slice(0, 16)}`, entityType: 'otro', modules: ['documents'] }),
+  });
+  ({ key } = await call('POST', `/admin/tenants/${tenant.id}/api-keys`, { headers: json, body: JSON.stringify({ name: 'evaluacion' }) }));
+}
 
 const list = await files(dir);
 const map = await labels();
@@ -150,3 +154,4 @@ if (detalle) {
   await writeFile(detalle, csv.join('\n') + '\n');
   console.log(`\nDetalle por archivo en ${detalle} (solo local).`);
 }
+if (!process.env.UKUK_EVAL_KEY) console.log(`\nPara verlos en el portal (http://localhost:3000/#/app), ingresa con: ${key}`);
