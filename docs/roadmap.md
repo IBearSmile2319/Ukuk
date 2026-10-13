@@ -7,16 +7,20 @@
 - **Qué es:** cuatro servicios antifraude y de cumplimiento para seguros, banca, cajas y otros
   sujetos obligados en el Perú: verificación documental, PLAFT, radar regulatorio y siniestros por
   WhatsApp.
-- **Dónde estamos:** el software de los cuatro servicios ya existe como **prototipo funcional y
-  probado**, con página pública, portal para analistas y datos de demostración. Corre en tu Mac
-  con un comando, y ya se probó con DNI reales.
+- **Dónde estamos:** el software de los cuatro servicios ya existe como **prototipo funcional**,
+  con página pública, portal para analistas y datos de demostración. Corre en tu Mac con un
+  comando.
+- **Lo que todavía no sabemos:** si detecta fraudes reales. Las pruebas comprueban que el código
+  hace lo que se escribió, no que encuentre falsificaciones bien hechas (ver
+  [Qué prueban y qué no](#qué-prueban-y-qué-no)). Hay que medirlo con documentos que tengan fraude
+  confirmado.
 - **Lo que falta no es técnico:** el negocio está en la fase 0 de la propuesta (validar con
   clientes). Lo siguiente es revisar tu contrato laboral, hacer las 10 entrevistas y conseguir una
   carta de intención para un piloto pagado.
 
 ![Hoja de ruta: estado de cada fase](img/roadmap.svg)
 
-✓ = hecho y probado como prototipo · ○ = pendiente
+✓ = construido (falta medir su detección con fraudes reales) · ○ = pendiente
 
 ## Lo que se ve hoy
 
@@ -111,6 +115,20 @@ explicar y auditar, como pide la SBS para el riesgo de modelo. El porqué de Rus
 
 ## Cómo se probó
 
+### Qué prueban y qué no
+
+- **Sí prueban** que cada regla hace lo que se escribió: el puntaje, los plazos SBS, el aislamiento
+  entre clientes, la auditoría, el MRZ y el dígito del CUI.
+- **No prueban** que Ukuk detecte fraudes reales. Los documentos de muestra los hicimos nosotros
+  pensando en las reglas que ya existen, así que detectarlos es circular.
+- **Primera medición sin ayuda**, con `node demo/evaluar.mjs` y sin los datos que declara el
+  cliente:
+  - la boleta retocada salió **aprobar**: el monto pegado en la imagen no se vio;
+  - el DNIe alterado salió marcado, pero por falsas alarmas de diseño, no por el número cambiado.
+- **Lo que falta para detectar fraude real:** comparar letra por letra (forma, grosor, nitidez y
+  ruido de fondo de cada campo frente al resto del documento) y tener plantillas de cada formato.
+  Hoy solo hay revisiones genéricas (compresión, clonado, tamaño de palabra).
+
 ### Pruebas automáticas
 
 | Parte | Pruebas | Resultado |
@@ -123,6 +141,9 @@ explicar y auditar, como pide la SBS para el riesgo de modelo. El porqué de Rus
 Cómo correrlas: `cargo test --workspace` en `engine/`, y `npm test` y `npm run test:e2e` en `api/`.
 
 ### Prueba con los datos de demostración
+
+Ojo: aquí el script de demostración le entrega a Ukuk los datos impresos (montos, DNI y MRZ).
+Las detecciones salen de cruzar esos datos, no de mirar la imagen.
 
 | Documento de muestra | Resultado | Por qué |
 |---|---|---|
@@ -174,10 +195,18 @@ marcada como simulación.
 - [ ] Conseguir unos 200 documentos reales anonimizados, con acuerdo de confidencialidad, para
       medir la detección.
 - [ ] Carta de intención para un piloto pagado. **Esta es la condición para pasar a la fase 1.**
+- [ ] **Medir la detección real** con documentos con fraude confirmado: `node demo/evaluar.mjs
+      <carpeta> --tipo acta --etiquetas etiquetas.csv` (solo imprime cifras).
 - [x] Demo lista para mostrar (`./dev.sh` + `node demo/seed.mjs`).
 - [x] Guía de venta y guion de demo: [venta.md](venta.md).
 
 ### Fase 1: primer piloto (documental)
+
+- [ ] **Forense de glifos:** comparar cada letra con las demás del mismo documento, y detectar
+      campos con otra nitidez, otro ruido de fondo u otra cuadrícula de compresión.
+- [ ] Tipos propios para actas de nacimiento, matrimonio y defunción, con sus reglas de fechas y
+      plantillas por formato.
+- [ ] DNI con los dos lados en una imagen: leer el frente y el MRZ con OCR y cruzarlos solos.
 
 - [ ] Desplegar en AWS en la región acordada, con dominio y correo propios.
 - [ ] Activar Claude (`ANTHROPIC_API_KEY`) y Amazon Textract: Tesseract no lee bien las fotos de
