@@ -67,6 +67,7 @@ describe('parseOccurrence (hora de Lima)', () => {
     expect(iso('12/10/2026 18:45')).toBe('2026-10-12T23:45:00.000Z');
     expect(iso('5/10 8am')).toBe('2026-10-05T13:00:00.000Z');
     expect(iso('12-10-26 7.15')).toBe('2026-10-12T12:15:00.000Z');
+    expect(iso('12.10.2026 6:45 p.m.')).toBe('2026-10-12T23:45:00.000Z');
   });
   it('sin hora toma el mediodía y lo marca', () => {
     expect(parseOccurrence('ayer', now)).toEqual({ date: new Date('2026-10-12T17:00:00.000Z'), timeKnown: false });

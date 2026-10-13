@@ -147,40 +147,44 @@ export function parseIdentifier(text: string): Identifier | { error: string } | 
  * "12/10 8 pm". Sin hora se toma el mediodía y se marca timeKnown = false.
  */
 export function parseOccurrence(text: string, now: Date): { date: Date; timeKnown: boolean } | null {
-  const t = norm(text);
+  // Como norm(), pero conserva los puntos ("7.15", "12.10.2026", "p.m.").
+  const t = text
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9:/\-. ]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
   const today = limaDate(now);
   let day: string | null = null;
   if (/\b(anteayer|antes de ayer|antier)\b/.test(t)) day = addCalendarDays(today, -2);
   else if (/\bayer\b/.test(t)) day = addCalendarDays(today, -1);
   else if (/\b(hoy|hace un rato|recien)\b/.test(t)) day = today;
-  const dm = /\b(\d{1,2})[/\-.](\d{1,2})(?:[/\-.](\d{2,4}))?\b/.exec(t);
+  const dm = /\b(\d{1,2})([/\-.])(\d{1,2})(?:\2(\d{2,4}))?(?![\d:])/.exec(t);
   let rest = t;
-  if (!day && dm) {
+  if (!day && dm && !(dm[2] === '.' && !dm[4])) {
     const d = Number(dm[1]);
-    const m = Number(dm[2]);
-    let y = dm[3] ? Number(dm[3]) : Number(today.slice(0, 4));
+    const m = Number(dm[3]);
+    let y = dm[4] ? Number(dm[4]) : Number(today.slice(0, 4));
     if (y < 100) y += 2000;
     if (d < 1 || d > 31 || m < 1 || m > 12) return null;
     day = `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
     if (new Date(`${day}T00:00:00Z`).getUTCDate() !== d) return null;
     // "12/10" sin año que caería en el futuro → año anterior.
-    if (!dm[3] && day > today) day = `${y - 1}${day.slice(4)}`;
+    if (!dm[4] && day > today) day = `${y - 1}${day.slice(4)}`;
     rest = t.replace(dm[0], ' ');
   }
   if (!day) return null;
   let hh: number | null = null;
   let mm = 0;
-  const hm = /\b(\d{1,2})\s*(?::|h|\.)\s*(\d{2})\s*(am|pm|a m|p m)?\b/.exec(rest);
-  const hOnly = /\b(\d{1,2})\s*(am|pm|a m|p m|hrs|horas)\b/.exec(rest);
+  const ampm = (s: string | undefined, h: number) => (s === 'p' && h < 12 ? h + 12 : s === 'a' && h === 12 ? 0 : h);
+  const hm = /\b(\d{1,2})\s*[:h.]\s*(\d{2})\s*(?:([ap])\.?\s?m\b\.?)?/.exec(rest);
+  const hOnly = /\b(\d{1,2})\s*(?:([ap])\.?\s?m\b\.?|hrs\b|horas\b)/.exec(rest);
   if (hm) {
-    hh = Number(hm[1]);
+    hh = ampm(hm[3], Number(hm[1]));
     mm = Number(hm[2]);
-    if (hm[3]?.startsWith('p') && hh < 12) hh += 12;
-    if (hm[3]?.startsWith('a') && hh === 12) hh = 0;
   } else if (hOnly) {
-    hh = Number(hOnly[1]);
-    if (hOnly[2].startsWith('p') && hh < 12) hh += 12;
-    if (hOnly[2].startsWith('a') && hh === 12) hh = 0;
+    hh = ampm(hOnly[2], Number(hOnly[1]));
   } else if (/\bmediodia\b/.test(rest)) hh = 12;
   if (hh !== null && (hh > 23 || mm > 59)) return null;
   const time = `${String(hh ?? 12).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
